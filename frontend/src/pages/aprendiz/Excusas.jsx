@@ -203,10 +203,40 @@ export default function AprendizExcusas() {
           </div>
           <div>
             <label className="input-label">Archivo Adjunto (opcional)</label>
-            <input type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-              className="input-field text-sm file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-medium file:bg-blue-50 file:text-[#4285F4] hover:file:bg-blue-100"
-              onChange={e => setArchivo(e.target.files[0])} />
-            <p className="text-xs text-gray-400 mt-1">PDF, JPG, PNG, DOC, DOCX · Máx. 5MB</p>
+            <div
+              onDragOver={e => e.preventDefault()}
+              onDrop={e => {
+                e.preventDefault();
+                const file = e.dataTransfer.files[0];
+                if (file) setArchivo(file);
+              }}
+              onClick={() => document.getElementById('file-input-excusa').click()}
+              className={`relative flex flex-col items-center justify-center gap-2 p-5 rounded-xl border-2 border-dashed cursor-pointer transition-all ${
+                archivo ? 'border-[#34A853] bg-green-50' : 'border-gray-200 hover:border-[#4285F4] hover:bg-blue-50/30'
+              }`}
+            >
+              <input
+                id="file-input-excusa"
+                type="file"
+                accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                className="hidden"
+                onChange={e => setArchivo(e.target.files[0])}
+              />
+              {archivo ? (
+                <>
+                  <CheckCircle size={22} className="text-[#34A853]"/>
+                  <p className="text-sm font-medium text-[#34A853]">{archivo.name}</p>
+                  <button type="button" onClick={e => { e.stopPropagation(); setArchivo(null); }}
+                    className="text-xs text-red-400 hover:underline">Quitar archivo</button>
+                </>
+              ) : (
+                <>
+                  <Paperclip size={22} className="text-gray-400"/>
+                  <p className="text-sm text-gray-500">Arrastra un archivo aquí o <span className="text-[#4285F4] font-medium">haz clic para seleccionar</span></p>
+                  <p className="text-xs text-gray-400">PDF, JPG, PNG, DOC · Máx. 5MB</p>
+                </>
+              )}
+            </div>
           </div>
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={() => setModal(false)} className="btn-secondary flex-1">Cancelar</button>

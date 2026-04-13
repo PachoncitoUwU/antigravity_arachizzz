@@ -5,6 +5,14 @@ import EmptyState from '../../components/EmptyState';
 import { Calendar, Clock, User, AlertTriangle } from 'lucide-react';
 
 const DIAS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+const COLORES = [
+  { bg: 'bg-blue-50',   text: 'text-blue-800',   border: 'border-blue-200' },
+  { bg: 'bg-green-50',  text: 'text-green-800',  border: 'border-green-200' },
+  { bg: 'bg-purple-50', text: 'text-purple-800', border: 'border-purple-200' },
+  { bg: 'bg-yellow-50', text: 'text-yellow-800', border: 'border-yellow-200' },
+  { bg: 'bg-red-50',    text: 'text-red-800',    border: 'border-red-200' },
+  { bg: 'bg-pink-50',   text: 'text-pink-800',   border: 'border-pink-200' },
+];
 
 export default function AprendizHorario() {
   const [horarios, setHorarios] = useState([]);
@@ -60,17 +68,20 @@ export default function AprendizHorario() {
                 <span className="font-bold text-sm text-gray-800">{dia}</span>
               </div>
               <div className="space-y-2">
-                {clases.map(c => (
-                  <div key={c.id} className="p-2.5 bg-green-50 rounded-xl">
-                    <p className="text-xs font-bold text-gray-800">{c.materia?.nombre}</p>
-                    <div className="flex items-center gap-1 text-xs text-gray-500 mt-1">
-                      <Clock size={11}/> {c.horaInicio} – {c.horaFin}
+                {clases.map((c, idx) => {
+                  const col = COLORES[idx % COLORES.length];
+                  return (
+                    <div key={c.id} className={`p-2.5 rounded-xl border ${col.bg} ${col.border}`}>
+                      <p className={`text-xs font-bold ${col.text}`}>{c.materia?.nombre}</p>
+                      <div className="flex items-center gap-1 text-xs text-gray-500 mt-1">
+                        <Clock size={11}/> {c.horaInicio} – {c.horaFin}
+                      </div>
+                      <div className="flex items-center gap-1 text-xs text-gray-400 mt-0.5">
+                        <User size={11}/> {c.materia?.instructor?.fullName}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1 text-xs text-gray-400 mt-0.5">
-                      <User size={11}/> {c.materia?.instructor?.fullName}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           ))}

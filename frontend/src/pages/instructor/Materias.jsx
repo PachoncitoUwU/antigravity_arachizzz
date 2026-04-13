@@ -5,7 +5,15 @@ import PageHeader from '../../components/PageHeader';
 import Modal from '../../components/Modal';
 import EmptyState from '../../components/EmptyState';
 import { useToast } from '../../context/ToastContext';
-import { BookOpen, Plus, Trash2, FileText } from 'lucide-react';
+import { BookOpen, Plus, Trash2 } from 'lucide-react';
+
+const COLORES_FICHA = [
+  { bg: 'bg-blue-50',   icon: 'text-[#4285F4]',  card: 'bg-blue-50/60 border-blue-100',   accent: '#4285F4' },
+  { bg: 'bg-green-50',  icon: 'text-[#34A853]',  card: 'bg-green-50/60 border-green-100', accent: '#34A853' },
+  { bg: 'bg-purple-50', icon: 'text-purple-500', card: 'bg-purple-50/60 border-purple-100', accent: '#8b5cf6' },
+  { bg: 'bg-yellow-50', icon: 'text-[#FBBC05]',  card: 'bg-yellow-50/60 border-yellow-100', accent: '#FBBC05' },
+  { bg: 'bg-red-50',    icon: 'text-[#EA4335]',  card: 'bg-red-50/60 border-red-100',     accent: '#EA4335' },
+];
 
 export default function InstructorMaterias() {
   const { user } = useContext(AuthContext);
@@ -95,11 +103,13 @@ export default function InstructorMaterias() {
         </div>
       ) : (
         <div className="space-y-6">
-          {byFicha.map(({ ficha, materias: mats }) => (
-            <div key={ficha.id} className="card">
+          {byFicha.map(({ ficha, materias: mats }, fichaIdx) => {
+            const col = COLORES_FICHA[fichaIdx % COLORES_FICHA.length];
+            return (
+            <div key={ficha.id} className="card" style={{ borderTopWidth: 3, borderTopColor: col.accent }}>
               <div className="flex items-center gap-2 mb-4 pb-3 border-b border-gray-100">
-                <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center">
-                  <BookOpen size={16} className="text-[#4285F4]"/>
+                <div className={`w-8 h-8 ${col.bg} rounded-lg flex items-center justify-center`}>
+                  <BookOpen size={16} className={col.icon}/>
                 </div>
                 <div>
                   <p className="font-bold text-gray-900 text-sm">Ficha {ficha.numero}</p>
@@ -107,21 +117,21 @@ export default function InstructorMaterias() {
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {mats.map(m => {
+                {mats.map((m, mIdx) => {
+                  const mCol = COLORES_FICHA[mIdx % COLORES_FICHA.length];
                   const isOwner = m.instructorId === user?.id;
                   const isAdmin = ficha.instructorAdminId === user?.id;
                   const canDelete = isOwner || isAdmin;
                   const hasActive = m.asistencias?.some(a => a.activa);
                   return (
-                    <div key={m.id} className="p-3 rounded-xl border border-gray-100 bg-gray-50 hover:bg-white hover:shadow-soft transition-all">
+                    <div key={m.id} className={`p-3 rounded-xl border hover:shadow-soft transition-all ${mCol.card}`}>
                       <div className="flex items-start justify-between">
                         <div className="flex-1 min-w-0">
                           <p className="font-semibold text-sm text-gray-800 truncate">{m.nombre}</p>
                           <p className="text-xs text-gray-400 mt-0.5">{m.instructor?.fullName}</p>
                         </div>
                         {canDelete && (
-                          <button onClick={() => handleDelete(m.id)}
-                            className="btn-icon w-7 h-7 text-red-400 hover:bg-red-50 shrink-0">
+                          <button onClick={() => handleDelete(m.id)} className="btn-icon w-7 h-7 text-red-400 hover:bg-red-50 shrink-0">
                             <Trash2 size={13}/>
                           </button>
                         )}
@@ -135,7 +145,7 @@ export default function InstructorMaterias() {
                 })}
               </div>
             </div>
-          ))}
+          );})}
         </div>
       )}
 

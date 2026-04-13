@@ -8,49 +8,52 @@ import PageHeader from '../../components/PageHeader';
 import Modal from '../../components/Modal';
 import EmptyState from '../../components/EmptyState';
 import { useToast } from '../../context/ToastContext';
-import { Calendar, Plus, Trash2, Clock, GripVertical } from 'lucide-react';
+import { Calendar, Plus, Trash2, Clock } from 'lucide-react';
 
 const DIAS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 
-// ─── Bloque draggable ─────────────────────────────────────────────────────────
-function HorarioBloque({ horario, onDelete, isDragging }) {
+// Paleta de colores para materias (rota por índice)
+const COLORES = [
+  { bg: 'bg-blue-50',   border: 'border-blue-200',   text: 'text-blue-800' },
+  { bg: 'bg-green-50',  border: 'border-green-200',  text: 'text-green-800' },
+  { bg: 'bg-purple-50', border: 'border-purple-200', text: 'text-purple-800' },
+  { bg: 'bg-yellow-50', border: 'border-yellow-200', text: 'text-yellow-800' },
+  { bg: 'bg-red-50',    border: 'border-red-200',    text: 'text-red-800' },
+  { bg: 'bg-pink-50',   border: 'border-pink-200',   text: 'text-pink-800' },
+];
+
+// ─── Bloque draggable — TODO el bloque es agarrable ──────────────────────────
+function HorarioBloque({ horario, onDelete, isDragging, color }) {
   const { attributes, listeners, setNodeRef, transform } = useDraggable({ id: horario.id });
 
   const style = transform ? {
     transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
     zIndex: 50,
-    opacity: isDragging ? 0.4 : 1,
   } : {};
 
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className={`group flex items-start justify-between p-2.5 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-100 dark:border-blue-800 transition-all ${
-        isDragging ? 'opacity-40' : 'hover:shadow-soft hover:-translate-y-0.5'
-      }`}
+      {...listeners}
+      {...attributes}
+      className={`group relative p-2.5 rounded-xl border cursor-grab active:cursor-grabbing transition-all select-none ${
+        isDragging ? 'opacity-30' : 'hover:shadow-md hover:-translate-y-0.5'
+      } ${color.bg} ${color.border}`}
     >
-      <div className="flex items-start gap-2 flex-1 min-w-0">
-        <button
-          {...listeners}
-          {...attributes}
-          className="mt-0.5 text-gray-300 hover:text-gray-500 cursor-grab active:cursor-grabbing shrink-0"
-        >
-          <GripVertical size={14} />
-        </button>
-        <div className="min-w-0">
-          <p className="text-xs font-bold text-gray-800 dark:text-gray-200 truncate">{horario.materia?.nombre}</p>
-          <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
-            <Clock size={10} /> {horario.horaInicio} – {horario.horaFin}
-          </p>
-          <p className="text-xs text-gray-400 truncate">{horario.materia?.instructor?.fullName}</p>
-        </div>
+      <div className="pr-6">
+        <p className={`text-xs font-bold truncate ${color.text}`}>{horario.materia?.nombre}</p>
+        <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
+          <Clock size={10} /> {horario.horaInicio} – {horario.horaFin}
+        </p>
+        <p className="text-xs text-gray-400 truncate mt-0.5">{horario.materia?.instructor?.fullName}</p>
       </div>
       <button
-        onClick={() => onDelete(horario.id)}
-        className="btn-icon w-6 h-6 text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+        onPointerDown={e => e.stopPropagation()}
+        onClick={e => { e.stopPropagation(); onDelete(horario.id); }}
+        className="absolute top-1.5 right-1.5 w-5 h-5 flex items-center justify-center rounded-lg text-red-400 hover:bg-red-100 opacity-0 group-hover:opacity-100 transition-opacity"
       >
-        <Trash2 size={12} />
+        <Trash2 size={11} />
       </button>
     </div>
   );
@@ -83,12 +86,13 @@ function DiaColumna({ dia, clases, onDelete, activeId }) {
         </div>
       ) : (
         <div className="space-y-2">
-          {clases.map(c => (
+          {clases.map((c, idx) => (
             <HorarioBloque
               key={c.id}
               horario={c}
               onDelete={onDelete}
               isDragging={activeId === c.id}
+              color={COLORES[idx % COLORES.length]}
             />
           ))}
         </div>

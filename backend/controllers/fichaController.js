@@ -1,7 +1,10 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
+const { generarCodigoFicha } = require('../utils/generators');
 
-const generateCode = () => Math.random().toString(36).substring(2, 8).toUpperCase();
+// generateCode ahora usa el generador de generators.js
+// Antes era: Math.random().toString(36).substring(2,8).toUpperCase()
+// Ahora el generador evita caracteres confusos (O, 0, I, 1)
 
 // RF04 - Crear ficha
 const createFicha = async (req, res) => {
@@ -11,7 +14,8 @@ const createFicha = async (req, res) => {
     return res.status(400).json({ error: 'Faltan datos obligatorios' });
   }
   try {
-    const code = generateCode();
+    const code = generarCodigoFicha();
+    console.log('🔑 Código generado por el generador:', code); // ← aparece en la terminal del backend
     const newFicha = await prisma.ficha.create({
       data: {
         numero, nivel, centro, jornada,
@@ -70,7 +74,7 @@ const regenerateCode = async (req, res) => {
     if (ficha.instructorAdminId !== instructorId) {
       return res.status(403).json({ error: 'Solo el administrador puede regenerar el código' });
     }
-    const code = generateCode();
+    const code = generarCodigoFicha();
     const updated = await prisma.ficha.update({ where: { id }, data: { code } });
     res.json({ message: 'Código regenerado', code: updated.code });
   } catch (err) {

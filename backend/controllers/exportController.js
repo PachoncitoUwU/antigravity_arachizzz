@@ -1,5 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
+const { generarFilasCSV } = require('../utils/generators');
 
 const toCSV = (rows) => {
   if (!rows.length) return '';
@@ -51,45 +52,9 @@ const exportAsistenciaFicha = async (req, res) => {
       return res.status(403).json({ error: 'Sin permiso' });
     }
 
-    const rows = [];
-
-    for (const materia of ficha.materias) {
-      for (const sesion of materia.asistencias) {
-        const fecha = sesion.fecha;
-        const hora  = new Date(sesion.timestamp).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
-
-        // Aprendices que SÍ registraron
-        for (const reg of sesion.registros) {
-          rows.push({
-            'Ficha':      ficha.numero,
-            'Materia':    materia.nombre,
-            'Fecha':      fecha,
-            'Nombre':     reg.aprendiz.fullName,
-            'Documento':  reg.aprendiz.document,
-            'Estado':     reg.presente ? 'Presente' : 'Ausente',
-            'Método':     reg.metodo || 'manual',
-            'Hora':       hora,
-          });
-        }
-
-        // Aprendices de la ficha que NO tienen registro → ausentes
-        for (const aprendiz of ficha.aprendices) {
-          const yaRegistrado = sesion.registros.some(r => r.aprendizId === aprendiz.id);
-          if (!yaRegistrado) {
-            rows.push({
-              'Ficha':      ficha.numero,
-              'Materia':    materia.nombre,
-              'Fecha':      fecha,
-              'Nombre':     aprendiz.fullName,
-              'Documento':  aprendiz.document,
-              'Estado':     'Ausente',
-              'Método':     '-',
-              'Hora':       '-',
-            });
-          }
-        }
-      }
-    }
+    // Usar el generador para construir las filas — produce una fila a la vez
+    // en lugar de construir todo el array de golpe en memoria
+    const rows = [...generarFilasCSV(ficha)];
 
     if (rows.length === 0) {
       return res.status(404).json({ error: 'No hay sesiones finalizadas para exportar' });
