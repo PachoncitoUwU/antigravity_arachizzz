@@ -10,6 +10,8 @@ Plataforma web para gestión de asistencia académica del SENA. Permite a instru
 
 ## Instalación
 
+debes instalar otras dependencias crack
+
 ### Requisitos
 - Node.js 18+
 - npm
