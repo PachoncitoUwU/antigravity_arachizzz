@@ -1,4 +1,5 @@
 const { PrismaClient } = require('@prisma/client');
+const { uploadToSupabase, isSupabaseConfigured } = require('../utils/supabaseStorage');
 const prisma = new PrismaClient();
 
 // RF11/RF32/RF33 - Crear excusa
@@ -7,7 +8,13 @@ const createExcusa = async (req, res) => {
   const aprendizId = req.user.id;
   if (!motivo || !descripcion || !fechas) return res.status(400).json({ error: 'Faltan datos' });
   try {
-    const archivoUrl = req.file ? `/uploads/${req.file.filename}` : null;
+    let archivoUrl = null;
+    if (req.file) {
+      if (!isSupabaseConfigured) {
+        return res.status(500).json({ error: 'Faltan las variables SUPABASE_URL y SUPABASE_ANON_KEY en backend/.env para guardar archivos en la nube.' });
+      }
+      archivoUrl = await uploadToSupabase(req.file.buffer, req.file.originalname, 'excusas');
+    }
     // fechas puede venir como string JSON o array
     const fechasStr = typeof fechas === 'string' ? fechas : JSON.stringify(fechas);
 

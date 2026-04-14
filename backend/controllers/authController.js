@@ -1,6 +1,7 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { PrismaClient } = require('@prisma/client');
+const { uploadToSupabase, isSupabaseConfigured } = require('../utils/supabaseStorage');
 const prisma = new PrismaClient();
 
 // RF01 - Registro
@@ -74,8 +75,16 @@ const getMe = async (req, res) => {
 // RF81 - Actualizar perfil (nombre + avatar)
 const updateProfile = async (req, res) => {
   const { fullName } = req.body;
-  const avatarUrl = req.file ? `/uploads/${req.file.filename}` : undefined;
+  
   try {
+    let avatarUrl = undefined;
+    if (req.file) {
+      if (!isSupabaseConfigured) {
+        return res.status(500).json({ error: 'Faltan las variables SUPABASE_URL y SUPABASE_ANON_KEY en backend/.env' });
+      }
+      avatarUrl = await uploadToSupabase(req.file.buffer, req.file.originalname, 'avatars');
+    }
+
     const data = {};
     if (fullName && fullName.trim()) data.fullName = fullName.trim();
     if (avatarUrl) data.avatarUrl = avatarUrl;

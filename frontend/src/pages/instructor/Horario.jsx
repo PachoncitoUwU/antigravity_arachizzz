@@ -12,7 +12,6 @@ import { Calendar, Plus, Trash2, Clock } from 'lucide-react';
 
 const DIAS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 
-// Paleta de colores para materias (rota por índice)
 const COLORES = [
   { bg: 'bg-blue-50',   border: 'border-blue-200',   text: 'text-blue-800' },
   { bg: 'bg-green-50',  border: 'border-green-200',  text: 'text-green-800' },
@@ -21,6 +20,13 @@ const COLORES = [
   { bg: 'bg-red-50',    border: 'border-red-200',    text: 'text-red-800' },
   { bg: 'bg-pink-50',   border: 'border-pink-200',   text: 'text-pink-800' },
 ];
+
+const getColorForMateria = (str) => {
+  if (!str) return 0;
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  return Math.abs(hash) % COLORES.length;
+};
 
 // ─── Bloque draggable — TODO el bloque es agarrable ──────────────────────────
 function HorarioBloque({ horario, onDelete, isDragging, color }) {
@@ -92,7 +98,7 @@ function DiaColumna({ dia, clases, onDelete, activeId }) {
               horario={c}
               onDelete={onDelete}
               isDragging={activeId === c.id}
-              color={COLORES[idx % COLORES.length]}
+              color={COLORES[getColorForMateria(c.materiaId || c.materia?.id || c.materia?.nombre)]}
             />
           ))}
         </div>
