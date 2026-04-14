@@ -194,7 +194,7 @@ function FichaCard({ ficha, currentUserId, onRegenerate, onEdit, onRemoveAprendi
       </button>
 
       {expanded && (
-              <div className="mt-2 space-y-1 max-h-48 overflow-y-auto">
+        <div className="mt-2 space-y-1 max-h-48 overflow-y-auto">
           {ficha.aprendices?.length === 0 ? (
             <p className="text-xs text-gray-400 text-center py-3">Sin aprendices aún</p>
           ) : ficha.aprendices?.map(a => {
@@ -208,7 +208,6 @@ function FichaCard({ ficha, currentUserId, onRegenerate, onEdit, onRemoveAprendi
                   <div className="w-8 h-8 rounded-xl bg-green-100 text-green-700 flex items-center justify-center text-xs font-bold">
                     <User size={16} />
                   </div>
-                )}
                 )}
                 <div>
                   <p className="text-xs font-medium text-gray-700">{a.fullName}</p>
@@ -229,7 +228,8 @@ function FichaCard({ ficha, currentUserId, onRegenerate, onEdit, onRemoveAprendi
                 </div>
               )}
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
