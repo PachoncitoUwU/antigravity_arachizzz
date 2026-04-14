@@ -9,20 +9,20 @@ import {
 } from 'lucide-react';
 
 const INSTRUCTOR_LINKS = [
-  { to: '/instructor/dashboard',     icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/instructor/fichas',        icon: Users,           label: 'Fichas' },
-  { to: '/instructor/materias',      icon: BookOpen,        label: 'Materias' },
-  { to: '/instructor/horario',       icon: Calendar,        label: 'Horario' },
-  { to: '/instructor/asistencia',    icon: Clock,           label: 'Asistencia' },
-  { to: '/instructor/excusas',       icon: FileText,        label: 'Excusas' },
+  { to: '/instructor/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/instructor/fichas', icon: Users, label: 'Fichas' },
+  { to: '/instructor/materias', icon: BookOpen, label: 'Materias' },
+  { to: '/instructor/horario', icon: Calendar, label: 'Horario' },
+  { to: '/instructor/asistencia', icon: Clock, label: 'Asistencia' },
+  { to: '/instructor/excusas', icon: FileText, label: 'Excusas' },
 ];
 
 const APRENDIZ_LINKS = [
-  { to: '/aprendiz/dashboard',       icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/aprendiz/materias',        icon: BookOpen,        label: 'Materias' },
-  { to: '/aprendiz/horario',         icon: Calendar,        label: 'Horario' },
-  { to: '/aprendiz/asistencia',      icon: Clock,           label: 'Asistencia' },
-  { to: '/aprendiz/excusas',         icon: FileText,        label: 'Excusas' },
+  { to: '/aprendiz/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/aprendiz/materias', icon: BookOpen, label: 'Materias' },
+  { to: '/aprendiz/horario', icon: Calendar, label: 'Horario' },
+  { to: '/aprendiz/asistencia', icon: Clock, label: 'Asistencia' },
+  { to: '/aprendiz/excusas', icon: FileText, label: 'Excusas' },
 ];
 
 function SidebarContent({ links, user, logout, onClose, configPath }) {
@@ -40,11 +40,8 @@ function SidebarContent({ links, user, logout, onClose, configPath }) {
     <div className="flex flex-col h-full bg-white dark:bg-gray-900 border-r border-gray-100 dark:border-gray-800">
       {/* Logo */}
       <div className="flex items-center justify-between px-5 py-5 border-b border-gray-100 dark:border-gray-800">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 bg-[#4285F4] rounded-lg flex items-center justify-center shadow-sm">
-            <GraduationCap size={18} className="text-white" />
-          </div>
-          <span className="text-lg font-bold text-gray-900 dark:text-white">Arachiz</span>
+        <div className="flex items-center">
+          <img src="/ArachizLogoPNG.png" alt="Arachiz" className="h-8 object-contain" />
         </div>
         <div className="flex items-center gap-1">
           <button onClick={toggleDark} className="btn-icon text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800">
@@ -158,11 +155,8 @@ export default function MainLayout({ allowedRoles }) {
             <button onClick={() => setSidebarOpen(true)} className="btn-icon text-gray-600 hover:bg-gray-100">
               <Menu size={20} />
             </button>
-            <div className="flex items-center gap-2">
-              <div className="w-6 h-6 bg-[#4285F4] rounded-md flex items-center justify-center">
-                <GraduationCap size={14} className="text-white" />
-              </div>
-              <span className="font-bold text-gray-900 dark:text-white">Arachiz</span>
+            <div className="flex items-center">
+              <img src="/ArachizLogoPNG.png" alt="Arachiz" className="h-6 object-contain" />
             </div>
             <div className="w-9" />
           </header>

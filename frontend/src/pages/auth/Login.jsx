@@ -33,11 +33,8 @@ export default function Login() {
       <div className="w-full max-w-sm relative">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center gap-2.5 mb-6">
-            <div className="w-10 h-10 bg-[#4285F4] rounded-xl flex items-center justify-center shadow-md">
-              <GraduationCap size={22} className="text-white"/>
-            </div>
-            <span className="text-2xl font-bold text-gray-900">Arachiz</span>
+          <div className="mb-6 flex justify-center">
+            <img src="/ArachizLogoPNG.png" alt="Arachiz" className="h-10 object-contain" />
           </div>
           <h1 className="text-3xl font-bold text-gray-900">Iniciar sesión</h1>
         </div>
