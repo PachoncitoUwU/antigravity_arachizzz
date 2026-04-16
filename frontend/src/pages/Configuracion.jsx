@@ -105,14 +105,35 @@ function Apple({ x, y }) {
   );
 }
 
-// Guardar/leer leaderboard en localStorage
-const LS_KEY = 'arachiz_snake_lb';
-const getLeaderboard = () => { try { return JSON.parse(localStorage.getItem(LS_KEY)) || []; } catch { return []; } };
-const saveScore = (name, avatar, score) => {
-  const lb = getLeaderboard();
-  lb.push({ name, avatar, score, date: new Date().toLocaleDateString('es-CO') });
-  lb.sort((a,b) => b.score - a.score);
-  localStorage.setItem(LS_KEY, JSON.stringify(lb.slice(0, 10)));
+// Leaderboard global — usa la API del backend
+const LS_KEY = 'arachiz_snake_lb_cache'; // cache local para mostrar mientras carga
+
+const getLeaderboard = () => {
+  try { return JSON.parse(localStorage.getItem(LS_KEY)) || []; } catch { return []; }
+};
+
+const saveScore = async (score, token) => {
+  try {
+    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+    await fetch(`${API_URL}/snake/score`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ score }),
+    });
+  } catch (e) { console.error('Error guardando score:', e); }
+};
+
+const fetchLeaderboard = async () => {
+  try {
+    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+    const res  = await fetch(`${API_URL}/snake/leaderboard`);
+    const data = await res.json();
+    if (data.scores) {
+      localStorage.setItem(LS_KEY, JSON.stringify(data.scores));
+      return data.scores;
+    }
+  } catch (e) { console.error('Error cargando leaderboard:', e); }
+  return getLeaderboard();
 };
 
 const MEDAL = ['🥇','🥈','🥉'];
@@ -190,9 +211,14 @@ function SnakeGame({ onClose, currentUser }) {
   const [dead,setDead]=useState(false);
   const [speed,setSpeed]=useState(140);
   const [scoresSaved,setScoresSaved]=useState(false);
-  const [lb,setLb]=useState(getLeaderboard());
+  const [lb,setLb]=useState(getLeaderboard()); // cache local mientras carga
   const dirRef=useRef([1,0]);
   const lastDir=useRef([1,0]);
+
+  // Cargar leaderboard desde el servidor al abrir
+  useEffect(()=>{
+    fetchLeaderboard().then(data=>setLb(data));
+  },[]);
 
   const randFood=(s)=>{let f;do{f=[Math.floor(Math.random()*COLS),Math.floor(Math.random()*ROWS)];}while(s.some(c=>c[0]===f[0]&&c[1]===f[1]));return f;};
   const tryDir=(next)=>{const cur=lastDir.current;if(cur[0]!==0&&next[0]===-cur[0])return;if(cur[1]!==0&&next[1]===-cur[1])return;dirRef.current=next;};
@@ -206,8 +232,11 @@ function SnakeGame({ onClose, currentUser }) {
   useEffect(()=>{
     if(dead){
       if(!scoresSaved&&score>0){
-        saveScore(currentUser?.fullName||currentUser?.email||'Jugador', currentUser?.avatarUrl||null, score);
-        setLb(getLeaderboard());
+        const token=localStorage.getItem('token');
+        saveScore(score,token).then(()=>{
+          // Recargar leaderboard actualizado
+          fetchLeaderboard().then(data=>setLb(data));
+        });
         setScoresSaved(true);
       }
       return;
@@ -224,7 +253,7 @@ function SnakeGame({ onClose, currentUser }) {
       });
     },speed);
     return()=>clearInterval(iv);
-  },[dead,food,speed,scoresSaved,score,currentUser]);
+  },[dead,food,speed,scoresSaved,score]);
 
   const reset=()=>{
     const s=[[8,6],[7,6],[6,6],[5,6]];

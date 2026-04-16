@@ -97,10 +97,13 @@ function FichaCard({ ficha, currentUserId, onRegenerate, onEdit, onRemoveAprendi
 
   const copyLink = (e) => {
     e.stopPropagation();
+    // window.location.origin funciona en cualquier entorno:
+    // - Local: http://192.168.1.x:5173  (accesible desde celular en la misma WiFi)
+    // - Vercel: https://arachiz.vercel.app  (accesible desde cualquier lugar)
     const link = `${window.location.origin}/unirse/${ficha.code}`;
     navigator.clipboard.writeText(link);
     setCopiedLink(true);
-    showToast('Link de invitación copiado', 'success');
+    showToast(`Link copiado: ${link}`, 'success');
     setTimeout(() => setCopiedLink(false), 2000);
   };
 

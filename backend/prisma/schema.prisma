@@ -29,6 +29,7 @@ model User {
   asistencias   Asistencia[] @relation("InstructorAsistencia")
   registros     RegistroAsistencia[]
   excusas       Excusa[]
+  snakeScore    SnakeScore?
 }
 
 model Ficha {
@@ -125,8 +126,8 @@ model Excusa {
   id           String   @id @default(cuid())
   motivo       String
   descripcion  String
-  fechas       String   // JSON array de fechas: '["2026-03-01","2026-03-02"]'
-  estado       String   @default("Pendiente") // 'Pendiente', 'Aprobada', 'Rechazada'
+  fechas       String
+  estado       String   @default("Pendiente")
   respuesta    String?
   archivoUrl   String?
   createdAt    DateTime @default(now())
@@ -134,4 +135,14 @@ model Excusa {
 
   aprendizId   String
   aprendiz     User     @relation(fields: [aprendizId], references: [id], onDelete: Cascade)
+}
+
+// Leaderboard global del juego Snake
+model SnakeScore {
+  id        String   @id @default(cuid())
+  score     Int
+  updatedAt DateTime @default(now()) @updatedAt
+
+  userId    String   @unique   // un registro por usuario (solo guarda su mejor score)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
