@@ -1,10 +1,10 @@
-import React, { useContext, useState, useRef, useEffect, useCallback } from 'react';
+import React, { useContext, useState, useRef, useEffect } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import { useSettings } from '../context/SettingsContext';
 import { useToast } from '../context/ToastContext';
 import PageHeader from '../components/PageHeader';
 import SerialConnect from '../components/SerialConnect';
-import { Moon, Sun, Globe, Bell, User, Shield, Palette, Save, Camera, Loader, Lock, Eye, EyeOff } from 'lucide-react';
+import { Moon, Sun, Globe, Bell, User, Shield, Palette, Save, Camera, Loader, Usb } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3000';
 
@@ -17,7 +17,7 @@ function ToggleSwitch({ checked, onChange, label, description }) {
       </div>
       <button type="button" onClick={() => onChange(!checked)}
         className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 ${checked ? 'bg-[#4285F4]' : 'bg-gray-200'}`}>
-        <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200 ${checked ? 'translate-x-6' : 'translate-x-1'}`} />
+        <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200 ${checked ? 'translate-x-6' : 'translate-x-1'}`}/>
       </button>
     </div>
   );
@@ -28,7 +28,7 @@ function Section({ icon: Icon, title, children, onTitleClick }) {
     <div className="card">
       <div className="flex items-center gap-3 mb-4 pb-3 border-b border-gray-100">
         <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center">
-          <Icon size={16} className="text-[#4285F4]" />
+          <Icon size={16} className="text-[#4285F4]"/>
         </div>
         <h2 className="font-bold text-gray-900 cursor-default select-none" onClick={onTitleClick}>{title}</h2>
       </div>
@@ -37,323 +37,256 @@ function Section({ icon: Icon, title, children, onTitleClick }) {
   );
 }
 
-// ─── JUEGO SECRETO 2: Breakout / Arkanoid ─────────────────────────────────────
+// ─── Breakout ─────────────────────────────────────────────────────────────────
 function BreakoutGame({ onClose }) {
   const canvasRef = useRef(null);
   const [score, setScore] = useState(0);
-  const [dead, setDead] = useState(false);
+  const [dead, setDead]   = useState(false);
 
   useEffect(() => {
-    const canvas = canvasRef.current;
+    const canvas = canvasRef.current; if (!canvas) return;
     const ctx = canvas.getContext('2d');
-    let x = canvas.width / 2;
-    let y = canvas.height - 30;
-    let dx = 2;
-    let dy = -2;
-    const ballRadius = 6;
-    const paddleHeight = 10;
-    const paddleWidth = 75;
-    let paddleX = (canvas.width - paddleWidth) / 2;
-    let rightPressed = false;
-    let leftPressed = false;
-
-    const brickRowCount = 5;
-    const brickColumnCount = 6;
-    const brickWidth = 47;
-    const brickHeight = 15;
-    const brickPadding = 6;
-    const brickOffsetTop = 30;
-    const brickOffsetLeft = 15;
-    let currentScore = 0;
-
-    const bricks = [];
-    for(let c=0; c<brickColumnCount; c++) {
-      bricks[c] = [];
-      for(let r=0; r<brickRowCount; r++) {
-        bricks[c][r] = { x: 0, y: 0, status: 1, c: `hsl(${Math.random()*360}, 70%, 50%)` };
-      }
-    }
-
-    const keyDownHandler = (e) => {
-      if(e.key === 'Right' || e.key === 'ArrowRight') rightPressed = true;
-      else if(e.key === 'Left' || e.key === 'ArrowLeft') leftPressed = true;
-      if(e.key === 'Escape') onClose();
-    };
-    const keyUpHandler = (e) => {
-      if(e.key === 'Right' || e.key === 'ArrowRight') rightPressed = false;
-      else if(e.key === 'Left' || e.key === 'ArrowLeft') leftPressed = false;
-    };
-    const mouseMoveHandler = (e) => {
-      const relativeX = e.clientX - canvas.getBoundingClientRect().left;
-      if(relativeX > 0 && relativeX < canvas.width) paddleX = relativeX - paddleWidth/2;
-    };
-    const touchMoveHandler = (e) => {
-      if (e.touches.length > 0) {
-        const relativeX = e.touches[0].clientX - canvas.getBoundingClientRect().left;
-        if(relativeX > 0 && relativeX < canvas.width) paddleX = relativeX - paddleWidth/2;
-      }
-    }
-
-    document.addEventListener("keydown", keyDownHandler);
-    document.addEventListener("keyup", keyUpHandler);
-    canvas.addEventListener("mousemove", mouseMoveHandler);
-    canvas.addEventListener("touchmove", touchMoveHandler);
-
-    function collisionDetection() {
-      for(let c=0; c<brickColumnCount; c++) {
-        for(let r=0; r<brickRowCount; r++) {
-          let b = bricks[c][r];
-          if(b.status === 1) {
-            if(x > b.x && x < b.x+brickWidth && y > b.y && y < b.y+brickHeight) {
-              dy = -dy; b.status = 0;
-              currentScore++; setScore(currentScore);
-              
-              if (Math.abs(dy) < 6) dy *= 1.03;
-              if (Math.abs(dx) < 6) dx *= 1.03;
-
-              if(currentScore === brickRowCount*brickColumnCount) {
-                // Restart
-                for(let c2=0; c2<brickColumnCount; c2++) {
-                  for(let r2=0; r2<brickRowCount; r2++) bricks[c2][r2].status = 1;
-                }
-                currentScore = 0; setScore(0); dy = -Math.abs(dy) - 0.5;
-              }
-            }
-          }
-        }
-      }
-    }
-
+    let x = canvas.width/2, y = canvas.height-30, dx = 2.5, dy = -2.5;
+    const ballR=6, padH=10, padW=80; let padX=(canvas.width-padW)/2;
+    let right=false, left=false;
+    const COLS=6, ROWS=5, BW=47, BH=15, BP=6; let sc=0;
+    const bricks=Array.from({length:COLS},(_,c)=>Array.from({length:ROWS},(_,r)=>({x:0,y:0,on:1,color:`hsl(${(c*60+r*30)%360},70%,55%)`})));
+    const kd=(e)=>{if(e.key==='ArrowRight'||e.key==='d'||e.key==='D')right=true;if(e.key==='ArrowLeft'||e.key==='a'||e.key==='A')left=true;if(e.key==='Escape')onClose();};
+    const ku=(e)=>{if(e.key==='ArrowRight'||e.key==='d'||e.key==='D')right=false;if(e.key==='ArrowLeft'||e.key==='a'||e.key==='A')left=false;};
+    const mm=(e)=>{const rx=e.clientX-canvas.getBoundingClientRect().left;if(rx>0&&rx<canvas.width)padX=rx-padW/2;};
+    const tm=(e)=>{if(e.touches[0]){const rx=e.touches[0].clientX-canvas.getBoundingClientRect().left;if(rx>0&&rx<canvas.width)padX=rx-padW/2;}};
+    document.addEventListener('keydown',kd);document.addEventListener('keyup',ku);
+    canvas.addEventListener('mousemove',mm);canvas.addEventListener('touchmove',tm,{passive:true});
     let req;
-    function draw() {
-      if (dead) return;
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      // Draw Bricks
-      for(let c=0; c<brickColumnCount; c++) {
-        for(let r=0; r<brickRowCount; r++) {
-          if(bricks[c][r].status === 1) {
-            let bX = (c*(brickWidth+brickPadding))+brickOffsetLeft;
-            let bY = (r*(brickHeight+brickPadding))+brickOffsetTop;
-            bricks[c][r].x = bX; bricks[c][r].y = bY;
-            ctx.beginPath(); ctx.roundRect ? ctx.roundRect(bX, bY, brickWidth, brickHeight, 4) : ctx.rect(bX, bY, brickWidth, brickHeight);
-            ctx.fillStyle = bricks[c][r].c; ctx.fill(); ctx.closePath();
-          }
-        }
-      }
-      // Draw Ball
-      ctx.beginPath(); ctx.arc(x, y, ballRadius, 0, Math.PI*2); ctx.fillStyle = "#EA4335"; ctx.fill(); ctx.closePath();
-      // Draw Paddle
-      ctx.beginPath(); ctx.roundRect ? ctx.roundRect(paddleX, canvas.height-paddleHeight, paddleWidth, paddleHeight, 4) : ctx.rect(paddleX, canvas.height-paddleHeight, paddleWidth, paddleHeight);
-      ctx.fillStyle = "#4285F4"; ctx.fill(); ctx.closePath();
-
-      collisionDetection();
-
-      if(x + dx > canvas.width-ballRadius || x + dx < ballRadius) dx = -dx;
-      if(y + dy < ballRadius) dy = -dy;
-      else if(y + dy > canvas.height-ballRadius) {
-        if(x > paddleX && x < paddleX + paddleWidth) {
-          dy = -dy; dx = dx + (x - (paddleX + paddleWidth/2)) * 0.15;
-          if (Math.abs(dy) < 6) dy *= 1.05;
-          if (Math.abs(dx) < 6) dx *= 1.05;
-        } else {
-          setDead(true);
-        }
-      }
-      if(rightPressed && paddleX < canvas.width-paddleWidth) paddleX += 5;
-      else if(leftPressed && paddleX > 0) paddleX -= 5;
-      x += dx; y += dy;
-      req = requestAnimationFrame(draw);
-    }
-    draw();
-
-    return () => {
-      document.removeEventListener("keydown", keyDownHandler);
-      document.removeEventListener("keyup", keyUpHandler);
-      canvas.removeEventListener("mousemove", mouseMoveHandler);
-      canvas.removeEventListener("touchmove", touchMoveHandler);
-      cancelAnimationFrame(req);
+    const draw=()=>{
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      for(let c=0;c<COLS;c++)for(let r=0;r<ROWS;r++){if(!bricks[c][r].on)continue;const bx=(c*(BW+BP))+15,by=(r*(BH+BP))+30;bricks[c][r].x=bx;bricks[c][r].y=by;ctx.beginPath();ctx.roundRect?ctx.roundRect(bx,by,BW,BH,4):ctx.rect(bx,by,BW,BH);ctx.fillStyle=bricks[c][r].color;ctx.fill();}
+      ctx.beginPath();ctx.arc(x,y,ballR,0,Math.PI*2);ctx.fillStyle='#EA4335';ctx.fill();
+      ctx.beginPath();ctx.roundRect?ctx.roundRect(padX,canvas.height-padH,padW,padH,4):ctx.rect(padX,canvas.height-padH,padW,padH);ctx.fillStyle='#4285F4';ctx.fill();
+      for(let c=0;c<COLS;c++)for(let r=0;r<ROWS;r++){const b=bricks[c][r];if(b.on&&x>b.x&&x<b.x+BW&&y>b.y&&y<b.y+BH){dy=-dy;b.on=0;sc++;setScore(sc);if(sc===COLS*ROWS){for(let c2=0;c2<COLS;c2++)for(let r2=0;r2<ROWS;r2++)bricks[c2][r2].on=1;sc=0;setScore(0);}}}
+      if(x+dx>canvas.width-ballR||x+dx<ballR)dx=-dx;
+      if(y+dy<ballR)dy=-dy;
+      else if(y+dy>canvas.height-ballR){if(x>padX&&x<padX+padW){dy=-Math.abs(dy);dx+=((x-(padX+padW/2))*0.1);}else{setDead(true);return;}}
+      if(right&&padX<canvas.width-padW)padX+=5;if(left&&padX>0)padX-=5;
+      x+=dx;y+=dy;req=requestAnimationFrame(draw);
     };
-  }, [onClose, dead]);
+    draw();
+    return()=>{document.removeEventListener('keydown',kd);document.removeEventListener('keyup',ku);canvas.removeEventListener('mousemove',mm);canvas.removeEventListener('touchmove',tm);cancelAnimationFrame(req);};
+  },[onClose,dead]);
 
-  const reset = () => {
-    setScore(0);
-    setDead(false);
-  };
-
+  const glass={background:'rgba(255,255,255,0.18)',backdropFilter:'blur(40px) saturate(200%)',WebkitBackdropFilter:'blur(40px) saturate(200%)',border:'1px solid rgba(255,255,255,0.5)',borderRadius:28,boxShadow:'0 20px 60px rgba(0,0,0,0.25),inset 0 1px 0 rgba(255,255,255,0.6)',padding:24,display:'flex',flexDirection:'column',alignItems:'center',gap:16};
   return (
-    <div className="fixed inset-0 flex items-center justify-center z-[200]" onClick={onClose}
-      style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(20px)' }}>
-      <div onClick={e=>e.stopPropagation()} style={{
-        background: 'rgba(255,255,255,0.15)',
-        backdropFilter: 'blur(40px) saturate(180%)',
-        WebkitBackdropFilter: 'blur(40px) saturate(180%)',
-        border: '1px solid rgba(255,255,255,0.35)',
-        borderRadius: 24,
-        boxShadow: '0 8px 32px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.4)',
-        padding: 24,
-        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16,
-      }}>
-        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', width:'100%' }}>
-          <h3 style={{ fontWeight:700, color:'white', fontSize:16, textShadow:'0 1px 4px rgba(0,0,0,0.3)' }}>🧱 Breakout — {score} pts</h3>
-          <button onClick={onClose} style={{ color:'rgba(255,255,255,0.7)', background:'none', border:'none', cursor:'pointer', fontSize:14 }}>✕ Cerrar</button>
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.4)',backdropFilter:'blur(16px)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:200}} onClick={onClose}>
+      <div style={glass} onClick={e=>e.stopPropagation()}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',width:'100%'}}>
+          <span style={{fontWeight:700,color:'white',fontSize:15,textShadow:'0 1px 6px rgba(0,0,0,0.3)'}}>🧱 Breakout — {score} pts</span>
+          <button onClick={onClose} style={{background:'rgba(255,255,255,0.25)',border:'1px solid rgba(255,255,255,0.4)',borderRadius:20,color:'white',padding:'4px 14px',cursor:'pointer',fontSize:13,fontWeight:600}}>✕</button>
         </div>
-        <div style={{ background:'rgba(0,0,0,0.3)', border:'1px solid rgba(255,255,255,0.2)', borderRadius:12, position:'relative', overflow:'hidden', touchAction:'none' }}>
-           <canvas ref={canvasRef} width={340} height={260} />
-           {dead && (
-             <div style={{ position:'absolute', inset:0, background:'rgba(0,0,0,0.6)', backdropFilter:'blur(8px)', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:12, borderRadius:10 }}>
-               <p style={{ color:'white', fontWeight:700, fontSize:18, textShadow:'0 2px 8px rgba(0,0,0,0.5)' }}>Game Over — {score} pts</p>
-               <button onClick={reset} style={{ background:'rgba(66,133,244,0.9)', color:'white', border:'1px solid rgba(255,255,255,0.3)', borderRadius:10, padding:'8px 20px', fontWeight:600, cursor:'pointer', backdropFilter:'blur(10px)' }}>Reintentar</button>
-             </div>
-           )}
+        <div style={{position:'relative',borderRadius:14,overflow:'hidden',border:'1px solid rgba(255,255,255,0.3)',touchAction:'none'}}>
+          <canvas ref={canvasRef} width={340} height={260} style={{display:'block',background:'rgba(0,0,0,0.25)'}}/>
+          {dead&&(<div style={{position:'absolute',inset:0,background:'rgba(0,0,0,0.55)',backdropFilter:'blur(10px)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:14}}>
+            <p style={{color:'white',fontWeight:700,fontSize:20}}>Game Over — {score} pts</p>
+            <button onClick={()=>setDead(false)} style={{background:'rgba(66,133,244,0.85)',color:'white',border:'1px solid rgba(255,255,255,0.3)',borderRadius:20,padding:'10px 24px',fontWeight:700,cursor:'pointer',fontSize:14}}>Reintentar</button>
+          </div>)}
         </div>
-        <p style={{ color:'rgba(255,255,255,0.6)', fontSize:12 }}>Desliza tu dedo o usa el ratón/teclado</p>
+        <p style={{color:'rgba(255,255,255,0.6)',fontSize:11}}>Ratón / teclado / táctil · ESC para cerrar</p>
       </div>
     </div>
   );
 }
 
-// ─── JUEGO SECRETO: Snake (Liquid Glass Edition) ──────────────────────────────
-const COLS = 15, ROWS = 12, CELL = 22;
-const DIR = { ArrowUp:[0,-1], ArrowDown:[0,1], ArrowLeft:[-1,0], ArrowRight:[1,0] };
+// ─── Snake ────────────────────────────────────────────────────────────────────
+const COLS=16,ROWS=13,CELL=24;
+const DIR={ArrowUp:[0,-1],ArrowDown:[0,1],ArrowLeft:[-1,0],ArrowRight:[1,0]};
+
+// Emoji manzana como comida
+function Apple({ x, y }) {
+  return (
+    <div style={{
+      position:'absolute', left:x*CELL, top:y*CELL,
+      width:CELL, height:CELL,
+      display:'flex', alignItems:'center', justifyContent:'center',
+      fontSize:CELL-4, lineHeight:1,
+      filter:'drop-shadow(0 2px 6px rgba(255,59,48,0.6))',
+      animation:'appleFloat 1.2s ease-in-out infinite alternate',
+      userSelect:'none',
+    }}>🍎</div>
+  );
+}
 
 function SnakeGame({ onClose }) {
-  const [snake, setSnake]   = useState([[7,6],[6,6],[5,6]]);
-  const [food, setFood]     = useState([10,4]);
-  const [dir, setDir]       = useState([1,0]);
-  const [score, setScore]   = useState(0);
-  const [dead, setDead]     = useState(false);
-  const dirRef              = useRef([1,0]);
-  const lastMovedDirRef     = useRef([1,0]);
+  const [snake,setSnake]=useState([[8,6],[7,6],[6,6],[5,6]]);
+  const [food,setFood]=useState([12,4]);
+  const [score,setScore]=useState(0);
+  const [dead,setDead]=useState(false);
+  const [speed,setSpeed]=useState(140);
+  const dirRef=useRef([1,0]);
+  const lastDir=useRef([1,0]);
 
-  const randFood = (s) => {
-    let f;
-    do { f = [Math.floor(Math.random()*COLS), Math.floor(Math.random()*ROWS)]; }
-    while (s.some(c => c[0]===f[0] && c[1]===f[1]));
-    return f;
-  };
+  const randFood=(s)=>{let f;do{f=[Math.floor(Math.random()*COLS),Math.floor(Math.random()*ROWS)];}while(s.some(c=>c[0]===f[0]&&c[1]===f[1]));return f;};
+  const tryDir=(next)=>{const cur=lastDir.current;if(cur[0]!==0&&next[0]===-cur[0])return;if(cur[1]!==0&&next[1]===-cur[1])return;dirRef.current=next;};
 
-  useEffect(() => {
-    const onKey = (e) => {
-      if (DIR[e.key]) { 
-        e.preventDefault(); 
-        const nextDir = DIR[e.key];
-        const currDir = lastMovedDirRef.current;
-        if (currDir[0] !== 0 && nextDir[0] === -currDir[0]) return;
-        if (currDir[1] !== 0 && nextDir[1] === -currDir[1]) return;
-        dirRef.current = nextDir; 
-      }
-      if (e.key === 'Escape') onClose();
+  useEffect(()=>{
+    const onKey=(e)=>{
+      const map={'ArrowUp':DIR.ArrowUp,'ArrowDown':DIR.ArrowDown,'ArrowLeft':DIR.ArrowLeft,'ArrowRight':DIR.ArrowRight,'w':DIR.ArrowUp,'W':DIR.ArrowUp,'s':DIR.ArrowDown,'S':DIR.ArrowDown,'a':DIR.ArrowLeft,'A':DIR.ArrowLeft,'d':DIR.ArrowRight,'D':DIR.ArrowRight};
+      if(map[e.key]){e.preventDefault();tryDir(map[e.key]);}
+      if(e.key==='Escape')onClose();
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+    window.addEventListener('keydown',onKey);return()=>window.removeEventListener('keydown',onKey);
+  },[onClose]);
 
-  useEffect(() => {
-    if (dead) return;
-    const iv = setInterval(() => {
-      setSnake(prev => {
-        const [dx,dy] = dirRef.current;
-        lastMovedDirRef.current = [dx,dy];
-        const head = [prev[0][0]+dx, prev[0][1]+dy];
-        if (head[0]<0||head[0]>=COLS||head[1]<0||head[1]>=ROWS||prev.some(c=>c[0]===head[0]&&c[1]===head[1])) {
-          setDead(true); return prev;
+  useEffect(()=>{
+    if(dead)return;
+    const iv=setInterval(()=>{
+      setSnake(prev=>{
+        const[dx,dy]=dirRef.current;lastDir.current=[dx,dy];
+        const head=[prev[0][0]+dx,prev[0][1]+dy];
+        if(head[0]<0||head[0]>=COLS||head[1]<0||head[1]>=ROWS||prev.some(c=>c[0]===head[0]&&c[1]===head[1])){setDead(true);return prev;}
+        const ate=head[0]===food[0]&&head[1]===food[1];
+        const next=[head,...prev.slice(0,ate?undefined:-1)];
+        if(ate){
+          const newScore=s=>s+10;
+          setScore(newScore);
+          setFood(randFood(next));
+          // Aumentar velocidad cada 50 pts (mínimo 70ms)
+          setSpeed(sp=>Math.max(70,sp-5));
         }
-        const ate = head[0]===food[0] && head[1]===food[1];
-        const next = [head, ...prev.slice(0, ate ? undefined : -1)];
-        if (ate) { setScore(s=>s+10); setFood(randFood(next)); }
         return next;
       });
-    }, 130);
-    return () => clearInterval(iv);
-  }, [dead, food]);
+    },speed);
+    return()=>clearInterval(iv);
+  },[dead,food,speed]);
 
-  const reset = () => {
-    const s = [[7,6],[6,6],[5,6]];
-    setSnake(s); setFood(randFood(s)); dirRef.current=[1,0]; lastMovedDirRef.current=[1,0]; setDir([1,0]); setScore(0); setDead(false);
+  const reset=()=>{
+    const s=[[8,6],[7,6],[6,6],[5,6]];
+    setSnake(s);setFood(randFood(s));
+    dirRef.current=[1,0];lastDir.current=[1,0];
+    setScore(0);setDead(false);setSpeed(140);
   };
 
+  // Colores del cuerpo con gradiente verde
+  const snakeColor=(i,total)=>{
+    const t=i/Math.max(total-1,1);
+    const r=Math.round(52+t*30);
+    const g=Math.round(199-t*60);
+    const b=Math.round(89-t*20);
+    return `rgb(${r},${g},${b})`;
+  };
+
+  const btn={
+    width:60,height:60,
+    background:'rgba(255,255,255,0.6)',
+    border:'1.5px solid rgba(255,255,255,0.9)',
+    borderRadius:16,
+    color:'#1d1d1f',fontSize:22,fontWeight:700,
+    cursor:'pointer',
+    boxShadow:'0 4px 16px rgba(0,0,0,0.08),inset 0 1px 0 rgba(255,255,255,0.8)',
+    backdropFilter:'blur(10px)',
+    WebkitBackdropFilter:'blur(10px)',
+    transition:'transform 0.1s,box-shadow 0.1s',
+    display:'flex',alignItems:'center',justifyContent:'center',
+  };
+
+  const W=COLS*CELL, H=ROWS*CELL;
+
   return (
-    <div className="fixed inset-0 flex items-center justify-center z-[200]" onClick={onClose}
-      style={{ background: 'var(--color-overlay, rgba(15, 23, 42, 0.4))', backdropFilter: 'blur(8px)' }}>
-      {/* Contenedor Liquid Glass */}
-      <div onClick={e=>e.stopPropagation()} style={{
-        background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.4) 0%, rgba(255, 255, 255, 0.1) 100%)',
-        backdropFilter: 'blur(30px) saturate(200%)',
-        WebkitBackdropFilter: 'blur(30px) saturate(200%)',
-        border: '1px solid rgba(255, 255, 255, 0.5)',
-        borderRadius: '30px',
-        boxShadow: '0 12px 40px rgba(0,0,0,0.2), inset 0 2px 2px rgba(255,255,255,0.7)',
-        padding: '24px',
-        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px',
-        maxWidth: '100%',
-      }}>
+    <div style={{position:'fixed',inset:0,background:'rgba(180,200,220,0.25)',backdropFilter:'blur(32px) saturate(180%)',WebkitBackdropFilter:'blur(32px) saturate(180%)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:200}} onClick={onClose}>
+      <style>{`
+        @keyframes appleFloat { from{transform:translateY(0) scale(1)} to{transform:translateY(-3px) scale(1.08)} }
+        @keyframes snakePop { 0%{transform:scale(1)} 50%{transform:scale(1.15)} 100%{transform:scale(1)} }
+        @keyframes deadShake { 0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-6px)} 40%,80%{transform:translateX(6px)} }
+      `}</style>
+
+      <div style={{
+        background:'rgba(255,255,255,0.5)',
+        backdropFilter:'blur(60px) saturate(220%)',
+        WebkitBackdropFilter:'blur(60px) saturate(220%)',
+        border:'1.5px solid rgba(255,255,255,0.9)',
+        borderRadius:40,
+        boxShadow:'0 40px 100px rgba(0,0,0,0.15),inset 0 2px 0 rgba(255,255,255,1),inset 0 -1px 0 rgba(0,0,0,0.04)',
+        padding:'28px 28px 24px',
+        display:'flex',flexDirection:'column',alignItems:'center',gap:20,
+        maxWidth:'95vw',
+      }} onClick={e=>e.stopPropagation()}>
+
         {/* Header */}
-        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', width:'100%' }}>
-          <h3 style={{ fontWeight:800, color:'#0F172A', fontSize:'1.2rem', margin:0, textShadow:'0 2px 10px rgba(255,255,255,0.7)', letterSpacing:'-0.5px' }}>
-            🐍 Snake <span style={{ color:'#4285F4' }}>Liquid</span> — {score} pts
-          </h3>
-          <button onClick={onClose} style={{ color:'#64748b', background:'rgba(255,255,255,0.3)', border:'1px solid rgba(255,255,255,0.5)', cursor:'pointer', fontSize:'0.9rem', padding:'6px 14px', borderRadius:'100px', fontWeight:600, boxShadow:'0 2px 8px rgba(0,0,0,0.05)' }}>✕</button>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',width:'100%'}}>
+          <div style={{display:'flex',alignItems:'baseline',gap:8}}>
+            <span style={{fontSize:22,fontWeight:800,color:'#1d1d1f',letterSpacing:'-0.6px'}}>Snake</span>
+            <span style={{fontSize:13,fontWeight:500,color:'#6e6e73',background:'rgba(0,0,0,0.06)',padding:'2px 10px',borderRadius:20}}>{score} pts</span>
+            {score>0&&<span style={{fontSize:11,color:'#34c759',fontWeight:600}}>Vel {Math.round((140-speed)/5)+1}x</span>}
+          </div>
+          <button onClick={onClose} style={{background:'rgba(0,0,0,0.07)',border:'none',borderRadius:22,color:'#1d1d1f',padding:'7px 18px',cursor:'pointer',fontSize:14,fontWeight:600,letterSpacing:'-0.2px'}}>Done</button>
         </div>
-        
+
         {/* Board */}
-        <div style={{ 
-            width: COLS*CELL, height: ROWS*CELL, 
-            background:'rgba(255,255,255,0.2)', 
-            border:'1px solid rgba(255,255,255,0.6)', 
-            borderRadius:'20px', position:'relative', overflow:'hidden',
-            boxShadow: 'inset 0 4px 12px rgba(0,0,0,0.1)'
+        <div style={{
+          width:W,height:H,
+          background:'linear-gradient(145deg,rgba(240,248,255,0.9),rgba(220,240,230,0.8))',
+          borderRadius:24,position:'relative',overflow:'hidden',
+          boxShadow:'inset 0 2px 16px rgba(0,0,0,0.06),0 8px 32px rgba(0,0,0,0.06)',
+          border:'1.5px solid rgba(255,255,255,0.95)',
+          animation:dead?'deadShake 0.4s ease':'none',
         }}>
-          {/* Trazado de celdas sutil */}
-          <div style={{ position:'absolute', inset:0, backgroundImage:'linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)', backgroundSize:`${CELL}px ${CELL}px` }} />
-          
-          {/* Snake */}
-          {snake.map(([x,y],i) => (
-            <div key={i} style={{ 
-              position:'absolute', left:x*CELL + 1, top:y*CELL + 1, width:CELL-2, height:CELL-2, 
-              background: i===0 ? 'linear-gradient(135deg, #4285F4, #2b5db0)' : 'linear-gradient(135deg, #34A853, #1e7033)', 
-              borderRadius: i===0 ? '8px' : '4px', 
-              transition:'left 0.13s linear, top 0.13s linear', 
-              boxShadow: i===0 ? '0 4px 12px rgba(66,133,244,0.6), inset 0 2px 4px rgba(255,255,255,0.5)' : 'inset 0 1px 2px rgba(255,255,255,0.4)',
-              zIndex: i===0 ? 10 : 5
-            }}/>
-          ))}
-          {/* Food */}
-          <div style={{ 
-            position:'absolute', left:food[0]*CELL+3, top:food[1]*CELL+3, width:CELL-6, height:CELL-6, 
-            background:'linear-gradient(135deg, #FF6B6B, #EA4335)', borderRadius:'50%', 
-            boxShadow:'0 4px 12px rgba(234,67,53,0.6), inset 0 2px 4px rgba(255,255,255,0.6)' 
-          }}/>
-          
-          {/* Game Over Overlay */}
-          {dead && (
-            <div style={{ position:'absolute', inset:0, background:'rgba(255,255,255,0.4)', backdropFilter:'blur(6px)', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:16, borderRadius:'18px', zIndex:20 }}>
-              <p style={{ color:'#1e293b', fontWeight:900, fontSize:'1.5rem', textShadow:'0 4px 12px rgba(255,255,255,0.8)' }}>¡Game Over!</p>
-              <button onClick={reset} style={{ 
-                background:'linear-gradient(135deg, #4285F4, #3367d6)', color:'white', 
-                border:'1px solid rgba(255,255,255,0.5)', borderRadius:'14px', 
-                padding:'12px 28px', fontSize:'1.1rem', fontWeight:700, cursor:'pointer', 
-                boxShadow:'0 8px 24px rgba(66,133,244,0.4), inset 0 2px 4px rgba(255,255,255,0.3)',
-                transition:'transform 0.2s',
-              }}
-              onMouseOver={e=>e.currentTarget.style.transform='scale(1.05)'}
-              onMouseOut={e=>e.currentTarget.style.transform='scale(1)'}>Reintentar</button>
+          {/* Serpiente */}
+          {snake.map(([x,y],i)=>{
+            const isHead=i===0;
+            const color=snakeColor(i,snake.length);
+            return (
+              <div key={i} style={{
+                position:'absolute',
+                left:x*CELL+1,top:y*CELL+1,
+                width:CELL-2,height:CELL-2,
+                background:color,
+                borderRadius:isHead?10:6,
+                boxShadow:isHead?`0 3px 12px ${color}99`:`0 1px 4px ${color}55`,
+                transition:'left 0.1s linear,top 0.1s linear',
+                zIndex:isHead?10:5,
+              }}>
+                {/* Ojos en la cabeza */}
+                {isHead&&(
+                  <>
+                    <div style={{position:'absolute',width:4,height:4,background:'white',borderRadius:'50%',top:4,left:4,boxShadow:'0 0 0 1px rgba(0,0,0,0.15)'}}/>
+                    <div style={{position:'absolute',width:4,height:4,background:'white',borderRadius:'50%',top:4,right:4,boxShadow:'0 0 0 1px rgba(0,0,0,0.15)'}}/>
+                  </>
+                )}
+              </div>
+            );
+          })}
+
+          {/* Manzana */}
+          <Apple x={food[0]} y={food[1]} />
+
+          {/* Game Over overlay */}
+          {dead&&(
+            <div style={{position:'absolute',inset:0,background:'rgba(255,255,255,0.82)',backdropFilter:'blur(16px)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:16,borderRadius:22}}>
+              <span style={{fontSize:48}}>😵</span>
+              <p style={{color:'#1d1d1f',fontWeight:800,fontSize:24,letterSpacing:'-0.8px',margin:0}}>Game Over</p>
+              <p style={{color:'#6e6e73',fontSize:15,margin:0}}>{score} puntos</p>
+              <button onClick={reset} style={{background:'#007aff',color:'white',border:'none',borderRadius:24,padding:'13px 36px',fontSize:16,fontWeight:700,cursor:'pointer',boxShadow:'0 6px 20px rgba(0,122,255,0.4)',letterSpacing:'-0.3px'}}>
+                Try Again
+              </button>
             </div>
           )}
         </div>
-        
-        {/* Controles táctiles gigantes para móvil */}
-        <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:'10px', marginTop:'10px' }}>
-          <button onClick={() => { dirRef.current = DIR['ArrowUp']; }}
-            style={{ width:'70px', height:'70px', background:'rgba(255,255,255,0.4)', border:'2px solid rgba(255,255,255,0.6)', borderRadius:'20px', color:'#1e293b', fontSize:'2rem', fontWeight:800, cursor:'pointer', boxShadow:'0 8px 16px rgba(0,0,0,0.1), inset 0 2px 4px rgba(255,255,255,0.8)' }}>↑</button>
-          <div style={{ display:'flex', gap:'10px' }}>
-            {['ArrowLeft','ArrowDown','ArrowRight'].map((k,i) => (
-              <button key={k} onClick={() => { dirRef.current = DIR[k]; }}
-                style={{ width:'70px', height:'70px', background:'rgba(255,255,255,0.4)', border:'2px solid rgba(255,255,255,0.6)', borderRadius:'20px', color:'#1e293b', fontSize:'2rem', fontWeight:800, cursor:'pointer', boxShadow:'0 8px 16px rgba(0,0,0,0.1), inset 0 2px 4px rgba(255,255,255,0.8)' }}>
+
+        {/* Controles — botones cuadrados redondeados */}
+        <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:10}}>
+          <button style={btn} onClick={()=>tryDir(DIR['ArrowUp'])}
+            onMouseDown={e=>e.currentTarget.style.transform='scale(0.93)'}
+            onMouseUp={e=>e.currentTarget.style.transform='scale(1)'}>↑</button>
+          <div style={{display:'flex',gap:10}}>
+            {['ArrowLeft','ArrowDown','ArrowRight'].map((k,i)=>(
+              <button key={k} style={btn} onClick={()=>tryDir(DIR[k])}
+                onMouseDown={e=>e.currentTarget.style.transform='scale(0.93)'}
+                onMouseUp={e=>e.currentTarget.style.transform='scale(1)'}>
                 {['←','↓','→'][i]}
               </button>
             ))}
           </div>
         </div>
+
+        <p style={{color:'rgba(0,0,0,0.3)',fontSize:11,margin:0}}>Flechas del teclado · ESC para cerrar</p>
       </div>
     </div>
   );
@@ -367,16 +300,30 @@ export default function Configuracion() {
   const fileInputRef = useRef(null);
 
   const [fullName, setFullName]           = useState(user?.fullName || '');
-  const formatAvatarUrl = (url) => url ? (url.startsWith('http') || url.startsWith('data:') ? url : `${API_BASE}${url}`) : null;
-  const [avatarPreview, setAvatarPreview] = useState(formatAvatarUrl(user?.avatarUrl));
+  const [avatarPreview, setAvatarPreview] = useState(
+    user?.avatarUrl ? (user.avatarUrl.startsWith('http') ? user.avatarUrl : `${API_BASE}${user.avatarUrl}`) : null
+  );
   const [avatarFile, setAvatarFile]       = useState(null);
   const [savingProfile, setSavingProfile] = useState(false);
 
-  // Juego secreto 2 — Arkanoid
-  const [arkClicks, setArkClicks] = useState(0);
-  const [showArk, setShowArk]   = useState(false);
-  const arkTimer = useRef(null);
+  // Snake — 7 clicks en "Seguridad"
+  const [secClicks, setSecClicks] = useState(0);
+  const [showSnake, setShowSnake] = useState(false);
+  const secTimer = useRef(null);
+  const handleSecClick = () => {
+    setSecClicks(n => {
+      const next = n + 1;
+      if (next >= 7) { setShowSnake(true); return 0; }
+      clearTimeout(secTimer.current);
+      secTimer.current = setTimeout(() => setSecClicks(0), 2000);
+      return next;
+    });
+  };
 
+  // Breakout — 7 clicks en "Apariencia"
+  const [arkClicks, setArkClicks] = useState(0);
+  const [showArk, setShowArk]     = useState(false);
+  const arkTimer = useRef(null);
   const handleArkClick = () => {
     setArkClicks(n => {
       const next = n + 1;
@@ -387,52 +334,30 @@ export default function Configuracion() {
     });
   };
 
-  // Juego secreto — se activa con 7 clicks en "Seguridad"
-  const [secClicks, setSecClicks] = useState(0);
-  const [showGame, setShowGame]   = useState(false);
-  const secTimer = useRef(null);
-
-  const handleSecClick = () => {
-    setSecClicks(n => {
-      const next = n + 1;
-      if (next >= 7) { setShowGame(true); return 0; }
-      clearTimeout(secTimer.current);
-      secTimer.current = setTimeout(() => setSecClicks(0), 2000);
-      return next;
-    });
-  };
-
-  // Botón oculto del instructor para borrar sensor
-  const [instClickCount, setInstClickCount] = useState(0);
-  const [showDevOptions, setShowDevOptions] = useState(false);
+  // Botón oculto instructor — 10 clicks en el rol para borrar huellas
+  const [instClicks, setInstClicks] = useState(0);
+  const [showClear, setShowClear]   = useState(false);
   const instTimer = useRef(null);
-
   const handleInstClick = () => {
     if (user?.userType !== 'instructor') return;
-    setInstClickCount(n => {
+    setInstClicks(n => {
       const next = n + 1;
-      if (next >= 10) { setShowDevOptions(true); return 0; }
+      if (next >= 10) { setShowClear(true); return 0; }
       clearTimeout(instTimer.current);
-      instTimer.current = setTimeout(() => setInstClickCount(0), 2000);
+      instTimer.current = setTimeout(() => setInstClicks(0), 2000);
       return next;
     });
   };
 
   const handleClearFingerprints = async () => {
-    const confirmDelete = window.confirm('¿Deseas borrar TODA la base de datos local de tu sensor de huellas?');
-    if (!confirmDelete) return;
+    if (!confirm('¿Borrar TODA la base de datos del sensor de huellas?')) return;
     try {
-      const res = await fetch(`${API_BASE}/api/serial/clear-fingerprints`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      });
+      const res  = await fetch(`${API_BASE}/api/serial/clear-fingerprints`, { method:'POST', headers:{ Authorization:`Bearer ${localStorage.getItem('token')}` } });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      showToast(data.message || 'Comando de borrado enviado', 'success');
-      setShowDevOptions(false);
-    } catch (err) {
-      showToast(err.message || 'Error al enviar el comando', 'error');
-    }
+      showToast(data.message || 'Comando enviado al sensor', 'success');
+      setShowClear(false);
+    } catch (err) { showToast(err.message, 'error'); }
   };
 
   const initials  = user?.fullName ? user.fullName.split(' ').map(n=>n[0]).slice(0,2).join('').toUpperCase() : '?';
@@ -441,7 +366,7 @@ export default function Configuracion() {
   const handleAvatarChange = (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    if (file.size > 5*1024*1024) { showToast('La imagen no puede superar 5MB','error'); return; }
+    if (file.size > 5*1024*1024) { showToast('Máx. 5MB','error'); return; }
     setAvatarFile(file);
     setAvatarPreview(URL.createObjectURL(file));
   };
@@ -449,35 +374,12 @@ export default function Configuracion() {
   const handleSaveProfile = async (e) => {
     e.preventDefault(); setSavingProfile(true);
     try {
-      const resizeImage = (file) => new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-          const img = new Image();
-          img.onload = () => {
-            const canvas = document.createElement('canvas');
-            const MAX_SIZE = 256;
-            let { width, height } = img;
-            if (width > height) { if (width > MAX_SIZE) { height *= MAX_SIZE / width; width = MAX_SIZE; } }
-            else { if (height > MAX_SIZE) { width *= MAX_SIZE / height; height = MAX_SIZE; } }
-            canvas.width = width; canvas.height = height;
-            canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-            resolve(canvas.toDataURL('image/jpeg', 0.8));
-          };
-          img.src = ev.target.result;
-        };
-        reader.readAsDataURL(file);
-      });
-
       const body = new FormData();
       if (fullName.trim() && fullName !== user?.fullName) body.append('fullName', fullName.trim());
-      if (avatarFile) {
-        const base64 = await resizeImage(avatarFile);
-        body.append('avatarBase64', base64);
-      }
-      
+      if (avatarFile) body.append('avatar', avatarFile);
       const d    = await fetch(`${API_BASE}/api/auth/profile`, { method:'PUT', headers:{ Authorization:`Bearer ${localStorage.getItem('token')}` }, body });
       const json = await d.json();
-      if (!d.ok) throw new Error(json.error || 'Error al guardar');
+      if (!d.ok) throw new Error(json.error || 'Error');
       if (updateUser) updateUser(json.user);
       setAvatarFile(null);
       showToast('Perfil actualizado','success');
@@ -485,34 +387,12 @@ export default function Configuracion() {
     finally { setSavingProfile(false); }
   };
 
-  const handleChangePass = async (e) => {
-    e.preventDefault();
-    if (passForm.newPass !== passForm.confirm) return showToast('Las contraseñas no coinciden','error');
-    if (passForm.newPass.length < 6) return showToast('Mínimo 6 caracteres','error');
-    setSavingPass(true);
-    try {
-      // Endpoint de cambio de contraseña (se agrega al backend)
-      const d    = await fetch(`${API_BASE}/api/auth/change-password`, {
-        method:'PUT', headers:{ 'Content-Type':'application/json', Authorization:`Bearer ${localStorage.getItem('token')}` },
-        body: JSON.stringify({ currentPassword: passForm.current, newPassword: passForm.newPass })
-      });
-      const json = await d.json();
-      if (!d.ok) throw new Error(json.error || 'Error');
-      setPassForm({ current:'', newPass:'', confirm:'' });
-      showToast('Contraseña actualizada','success');
-    } catch(err) { showToast(err.message,'error'); }
-    finally { setSavingPass(false); }
-  };
-
-  const LANGUAGES = [
-    { code:'es', label:'Español', flag:'🇨🇴' },
-    { code:'en', label:'English', flag:'🇺🇸' },
-  ];
+  const LANGUAGES = [{ code:'es', label:'Español', flag:'🇨🇴' }, { code:'en', label:'English', flag:'🇺🇸' }];
 
   return (
     <div className="animate-fade-in space-y-5 max-w-2xl">
-      {showGame && <SnakeGame onClose={() => setShowGame(false)} />}
-      {showArk && <BreakoutGame onClose={() => setShowArk(false)} />}
+      {showSnake && <SnakeGame onClose={() => setShowSnake(false)} />}
+      {showArk   && <BreakoutGame onClose={() => setShowArk(false)} />}
 
       <PageHeader title="Configuración" subtitle="Personaliza tu experiencia en Arachiz" />
 
@@ -520,15 +400,14 @@ export default function Configuracion() {
       <Section icon={User} title="Perfil">
         <form onSubmit={handleSaveProfile} className="space-y-4">
           <div className="flex items-center gap-5 mb-2">
-            <div className="relative group">
+            <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
               {avatarPreview
                 ? <img src={avatarPreview} alt="Avatar" className="w-20 h-20 rounded-2xl object-cover shadow-md"/>
-                : <div className={`w-20 h-20 rounded-2xl flex items-center justify-center text-white shadow-md ${roleColor}`}><User size={36}/></div>
+                : <div className={`w-20 h-20 rounded-2xl flex items-center justify-center text-2xl font-bold text-white shadow-md ${roleColor}`}>{initials}</div>
               }
-              <button type="button" onClick={() => fileInputRef.current?.click()}
-                className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity">
                 <Camera size={20} className="text-white"/>
-              </button>
+              </div>
               <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleAvatarChange}/>
             </div>
             <div>
@@ -537,7 +416,9 @@ export default function Configuracion() {
               <span className={`badge mt-1 ${user?.userType==='instructor'?'badge-info':'badge-success'}`}>
                 {user?.userType==='instructor'?'Instructor':'Aprendiz'}
               </span>
-              <button type="button" onClick={() => fileInputRef.current?.click()} className="block text-xs text-[#4285F4] hover:underline mt-1">Cambiar foto</button>
+              <button type="button" onClick={() => fileInputRef.current?.click()} className="block text-xs text-[#4285F4] hover:underline mt-1">
+                Cambiar foto
+              </button>
             </div>
           </div>
           <div>
@@ -559,7 +440,7 @@ export default function Configuracion() {
       {/* Apariencia */}
       <Section icon={Palette} title="Apariencia" onTitleClick={handleArkClick}>
         <p className="text-sm font-medium text-gray-700 mb-3">Tema</p>
-        <div className="grid grid-cols-2 gap-3 mb-4">
+        <div className="grid grid-cols-2 gap-3">
           {[{id:'light',label:'Claro',icon:Sun},{id:'dark',label:'Oscuro',icon:Moon}].map(({id,label,icon:Icon}) => {
             const active = id==='dark' ? settings.darkMode : !settings.darkMode;
             return (
@@ -572,6 +453,7 @@ export default function Configuracion() {
             );
           })}
         </div>
+        {arkClicks > 0 && arkClicks < 7 && <p className="text-xs text-gray-300 text-center mt-2">{7-arkClicks} más...</p>}
       </Section>
 
       {/* Idioma */}
@@ -589,7 +471,7 @@ export default function Configuracion() {
             </button>
           ))}
         </div>
-        <p className="text-xs text-gray-400 mt-3">La traducción completa al inglés estará disponible próximamente.</p>
+        <p className="text-xs text-gray-400 mt-3">Traducción completa al inglés próximamente.</p>
       </Section>
 
       {/* Notificaciones */}
@@ -600,36 +482,35 @@ export default function Configuracion() {
         </div>
       </Section>
 
-      {/* Hardware / Biometría (Sólo Instructor) */}
+      {/* Hardware — solo instructores */}
       {user?.userType === 'instructor' && (
-        <SerialConnect />
+        <Section icon={Usb} title="Hardware / Arduino">
+          <SerialConnect />
+        </Section>
       )}
 
-      {/* Seguridad — clic 7 veces para el juego */}
+      {/* Seguridad */}
       <Section icon={Shield} title="Seguridad" onTitleClick={handleSecClick}>
         <div className="space-y-3">
           <p className="text-sm text-gray-500">Tu sesión expira automáticamente después de 8 horas de inactividad.</p>
           <div className="p-3 bg-gray-50 rounded-xl">
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Sesión actual</p>
             <p className="text-sm text-gray-700">{user?.email}</p>
-            <p className="text-xs text-gray-400 capitalize cursor-pointer select-none inline-block" onClick={handleInstClick}>{user?.userType}</p>
+            <p className="text-xs text-gray-400 capitalize cursor-default select-none" onClick={handleInstClick}>
+              {user?.userType}
+            </p>
           </div>
-          {instClickCount > 0 && instClickCount < 10 && (
-            <p className="text-xs text-gray-300 text-center">{10 - instClickCount} clics más para opciones ocultas</p>
-          )}
-          {showDevOptions && (
-             <div className="p-3 bg-red-50 border border-red-200 rounded-xl flex flex-col gap-2 mt-2">
-               <p className="text-xs font-bold text-red-600">Opciones de Instructor (Avanzado)</p>
-               <button 
-                 onClick={handleClearFingerprints}
-                 className="w-full text-xs font-bold text-white bg-red-500 hover:bg-red-600 rounded-lg py-2 transition-colors"
-               >
-                 Borrar Base de Datos del Sensor
-               </button>
-             </div>
-          )}
-          {secClicks > 0 && secClicks < 7 && (
-            <p className="text-xs text-gray-300 text-center">{7-secClicks} más...</p>
+          {secClicks > 0 && secClicks < 7 && <p className="text-xs text-gray-300 text-center">{7-secClicks} más...</p>}
+          {showClear && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-xl space-y-2">
+              <p className="text-xs font-bold text-red-600">Opciones avanzadas del sensor</p>
+              <button onClick={handleClearFingerprints} className="w-full text-xs font-bold text-white bg-red-500 hover:bg-red-600 rounded-lg py-2 transition-colors">
+                Borrar base de datos del sensor de huellas
+              </button>
+              <button onClick={() => setShowClear(false)} className="w-full text-xs text-gray-500 hover:text-gray-700 py-1">
+                Cancelar
+              </button>
+            </div>
           )}
         </div>
       </Section>

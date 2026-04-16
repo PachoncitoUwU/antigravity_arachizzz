@@ -46,21 +46,35 @@ export default function InstructorAsistencia() {
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
-  const [selectedFecha, setSelectedFecha] = useState(() => new Date().toISOString().split('T')[0]);
+  const [selectedFecha, setSelectedFecha] = useState(() => new Date().toISOString().split('T')[0]); // Se deja internamente si es necesario, pero se oculta o elimina
   const [tab, setTab] = useState('sesion'); // 'sesion' | 'estadisticas'
   const socketRef = useRef(null);
 
   useEffect(() => {
-    fetchApi('/materias/my-materias').then(d => {
-      setMaterias(d.materias);
-      if (d.materias.length > 0) setSelectedMateria(d.materias[0].id);
-    }).catch(console.error).finally(() => setLoading(false));
+    fetchApi('/asistencias/my-active-any').then(activeData => {
+      let activeSet = false;
+      if (activeData.session) {
+        setSelectedMateria(activeData.session.materiaId);
+        setActiveSession(activeData.session);
+        connectSocket(activeData.session.id);
+        activeSet = true;
+      }
+      fetchApi('/materias/my-materias').then(d => {
+        setMaterias(d.materias);
+        if (d.materias.length > 0 && !activeSet && !selectedMateria) {
+          setSelectedMateria(d.materias[0].id);
+        }
+      }).catch(console.error).finally(() => setLoading(false));
+    });
   }, []);
 
   useEffect(() => {
     if (!selectedMateria) return;
     loadSessions();
-    checkActiveSession();
+    // Si ya recuperamos we don't duplicate
+    if (!activeSession || activeSession.materiaId !== selectedMateria) {
+      checkActiveSession();
+    }
   }, [selectedMateria]);
 
   const loadSessions = async () => {
@@ -168,7 +182,8 @@ export default function InstructorAsistencia() {
     try {
       const d = await fetchApi('/asistencias', {
         method: 'POST',
-        body: JSON.stringify({ materiaId: selectedMateria, fecha: selectedFecha })
+        // Backend ya genera su propia fecha inquebrantable
+        body: JSON.stringify({ materiaId: selectedMateria })
       });
       setActiveSession({ ...d.asistencia, registros: [] });
       connectSocket(d.asistencia.id);
@@ -268,10 +283,8 @@ export default function InstructorAsistencia() {
                   }
                 </select>
               </div>
-              <div className="w-full sm:w-40">
-                <label className="input-label">Fecha</label>
-                <input type="date" className="input-field dark:bg-gray-800 dark:border-gray-700 dark:text-white"
-                  value={selectedFecha} onChange={e => setSelectedFecha(e.target.value)} disabled={!!activeSession} />
+              <div className="w-full sm:w-40" style={{display: 'none'}}>
+                {/* Se eliminó visualmente el selector de fecha para forzar el uso del día actual */}
               </div>
               <div>
                 {!activeSession ? (

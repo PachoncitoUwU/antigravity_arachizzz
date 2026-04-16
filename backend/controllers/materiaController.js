@@ -59,7 +59,10 @@ const getMateriasByFicha = async (req, res) => {
       where: { fichaId },
       include: {
         instructor: { select: { id: true, fullName: true } },
-        asistencias: { select: { id: true, activa: true } }
+        asistencias: { 
+          where: { activa: true },
+          select: { id: true, activa: true } 
+        }
       }
     });
     res.json({ materias: fichaMaterias });
@@ -78,7 +81,10 @@ const getUserMaterias = async (req, res) => {
         where: { instructorId: userId },
         include: {
           ficha: { select: { numero: true, id: true } },
-          asistencias: { select: { id: true, activa: true } },
+          asistencias: { 
+            where: { activa: true },
+            select: { id: true, activa: true } 
+          },
           _count: { select: { asistencias: true } }
         }
       });
@@ -91,12 +97,7 @@ const getUserMaterias = async (req, res) => {
       const misMaterias = await prisma.materia.findMany({
         where: { fichaId: miFicha.id },
         include: {
-          instructor: { select: { fullName: true } },
-          asistencias: {
-            include: {
-              registros: { where: { aprendizId: userId } }
-            }
-          }
+          instructor: { select: { fullName: true } }
         }
       });
       return res.json({ materias: misMaterias });

@@ -44,8 +44,8 @@ export default function Register() {
 
       <div className="w-full max-w-sm relative">
         <div className="text-center mb-8">
-          <div className="mb-6 flex justify-center">
-            <img src="/ArachizLogoPNG.png" alt="Arachiz" className="h-10 object-contain" />
+          <div className="flex justify-center mb-6">
+            <img src="/ArachizLogoPNG.png" alt="Arachiz" className="h-14 md:h-16 object-contain dark:invert transition-all duration-300" />
           </div>
           <h1 className="text-3xl font-bold text-gray-900">Crear cuenta</h1>
         </div>

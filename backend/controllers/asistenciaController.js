@@ -3,9 +3,9 @@ const prisma = new PrismaClient();
 
 // RF08 - Crear sesión
 const createSession = async (req, res) => {
-  const { materiaId, fecha } = req.body;
+  const { materiaId } = req.body;
   const instructorId = req.user.id;
-  if (!materiaId || !fecha) return res.status(400).json({ error: 'Faltan datos' });
+  if (!materiaId) return res.status(400).json({ error: 'Falta la materia' });
   try {
     // Verificar que no haya sesión activa para esta materia
     const existing = await prisma.asistencia.findFirst({
@@ -13,9 +13,12 @@ const createSession = async (req, res) => {
     });
     if (existing) return res.status(400).json({ error: 'Ya hay una sesión activa para esta materia' });
 
+    // La fecha SIEMPRE será el día de hoy, puesta por el servidor
+    const autoFecha = new Date().toISOString().split('T')[0];
+
     const newAsistencia = await prisma.asistencia.create({
       data: {
-        fecha,
+        fecha: autoFecha,
         materia: { connect: { id: materiaId } },
         instructor: { connect: { id: instructorId } },
         activa: true
@@ -284,4 +287,27 @@ const getSessionById = async (req, res) => {
   }
 };
 
-module.exports = { createSession, getSessionsByMateria, getMyAttendance, registerAttendance, registerHardwareAttendance, endSession, getActiveSession, getSessionById };
+// Buscar CUALQUIER sesión activa del instructor en el momento
+const getMyActiveAnySession = async (req, res) => {
+  try {
+    const session = await prisma.asistencia.findFirst({
+      where: { instructorId: req.user.id, activa: true },
+      include: {
+        registros: { include: { aprendiz: { select: { id: true, fullName: true, document: true } } } },
+        materia: {
+          include: {
+            ficha: {
+              include: { aprendices: { select: { id: true, fullName: true, document: true, nfcUid: true, huellas: true } } }
+            },
+            instructor: { select: { fullName: true } }
+          }
+        }
+      }
+    });
+    res.json({ session: session || null });
+  } catch (err) {
+    res.status(500).json({ error: 'Error: ' + err.message });
+  }
+};
+
+module.exports = { createSession, getSessionsByMateria, getMyAttendance, registerAttendance, registerHardwareAttendance, endSession, getActiveSession, getSessionById, getMyActiveAnySession };
