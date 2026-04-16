@@ -15,7 +15,16 @@ export default function Login() {
     setError(''); setLoading(true);
     try {
       const data = await fetchApi('/auth/login', { method: 'POST', body: JSON.stringify(form) });
-      login(data.token, data.user);
+      // Si venía de un link de invitación, redirigir a unirse
+      const pendingCode = localStorage.getItem('pendingJoinCode');
+      if (pendingCode && data.user?.userType === 'aprendiz') {
+        localStorage.removeItem('pendingJoinCode');
+        login(data.token, data.user);
+        // La navegación la maneja login(), pero necesitamos override
+        setTimeout(() => window.location.replace(`/unirse/${pendingCode}`), 100);
+      } else {
+        login(data.token, data.user);
+      }
     } catch (err) { setError(err.message); }
     finally { setLoading(false); }
   };

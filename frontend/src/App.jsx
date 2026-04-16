@@ -22,6 +22,7 @@ import AprendizAsistencia from './pages/aprendiz/Asistencia';
 import AprendizExcusas    from './pages/aprendiz/Excusas';
 
 import Configuracion from './pages/Configuracion';
+import JoinFicha from './pages/JoinFicha';
 
 export default function App() {
   return (
@@ -33,6 +34,7 @@ export default function App() {
               <Route path="/" element={<Navigate to="/login" replace />} />
               <Route path="/login"    element={<Login />} />
               <Route path="/register" element={<Register />} />
+              <Route path="/unirse/:code" element={<JoinFicha />} />
 
               <Route path="/instructor" element={<MainLayout allowedRoles={['instructor']} />}>
                 <Route index element={<Navigate to="dashboard" replace />} />

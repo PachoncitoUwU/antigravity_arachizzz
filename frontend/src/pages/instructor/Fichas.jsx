@@ -4,13 +4,21 @@ import fetchApi from '../../services/api';
 import PageHeader from '../../components/PageHeader';
 import Modal from '../../components/Modal';
 import EmptyState from '../../components/EmptyState';
+import EnrollModal from '../../components/EnrollModal';
 import { useToast } from '../../context/ToastContext';
 import {
   Users, Plus, Copy, RefreshCw, ChevronDown, ChevronUp,
-  UserMinus, Edit2, Check, Download, Loader, User
+  UserMinus, Edit2, Check, Download, Loader, Fingerprint, Link
 } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3000';
+
+// Helper para resolver cualquier tipo de avatarUrl
+const resolveAvatar = (url) => {
+  if (!url) return null;
+  if (url.startsWith('data:') || url.startsWith('http') || url.startsWith('blob:')) return url;
+  return `${API_BASE}${url}`;
+};
 
 const COLORES = [
   { border: '#4285F4', bg: 'bg-blue-50',   text: 'text-[#4285F4]' },
@@ -72,9 +80,10 @@ function FichaForm({ form, onChange, onSubmit, onCancel, saving, error, isEdit }
 }
 
 // ─── FichaCard — expandible en la misma página ────────────────────────────────
-function FichaCard({ ficha, currentUserId, onRegenerate, onEdit, onRemoveAprendiz, color }) {
+function FichaCard({ ficha, currentUserId, onRegenerate, onEdit, onRemoveAprendiz, onEnroll, color }) {
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied]     = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
   const [exporting, setExporting] = useState(false);
   const { showToast } = useToast();
   const isAdmin = ficha.instructorAdminId === currentUserId;
@@ -84,6 +93,15 @@ function FichaCard({ ficha, currentUserId, onRegenerate, onEdit, onRemoveAprendi
     navigator.clipboard.writeText(ficha.code);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const copyLink = (e) => {
+    e.stopPropagation();
+    const link = `${window.location.origin}/unirse/${ficha.code}`;
+    navigator.clipboard.writeText(link);
+    setCopiedLink(true);
+    showToast('Link de invitación copiado', 'success');
+    setTimeout(() => setCopiedLink(false), 2000);
   };
 
   const handleExport = async (e) => {
@@ -120,12 +138,16 @@ function FichaCard({ ficha, currentUserId, onRegenerate, onEdit, onRemoveAprendi
           <button onClick={handleExport} disabled={exporting} className="btn-icon text-[#34A853] hover:bg-green-50" title="Exportar CSV">
             {exporting ? <Loader size={15} className="animate-spin"/> : <Download size={15}/>}
           </button>
+          <button onClick={copyLink} className="btn-icon hover:bg-blue-50" title="Copiar link de invitación"
+            style={{ color: copiedLink ? '#34A853' : '#4285F4' }}>
+            {copiedLink ? <Check size={15}/> : <Link size={15}/>}
+          </button>
           {isAdmin && (
             <button onClick={e => { e.stopPropagation(); onEdit(ficha); }} className="btn-icon text-gray-400 hover:bg-gray-100" title="Editar">
               <Edit2 size={15}/>
             </button>
           )}
-          <div className={`btn-icon text-gray-400`}>
+          <div className="btn-icon text-gray-400">
             {expanded ? <ChevronUp size={16}/> : <ChevronDown size={16}/>}
           </div>
         </div>
@@ -168,9 +190,7 @@ function FichaCard({ ficha, currentUserId, onRegenerate, onEdit, onRemoveAprendi
           ) : (
             <div className="space-y-1.5 max-h-64 overflow-y-auto">
               {[...(ficha.aprendices || [])].sort((a,b) => a.fullName.localeCompare(b.fullName)).map(a => {
-                const avatarSrc = a.avatarUrl
-                  ? (a.avatarUrl.startsWith('http') ? a.avatarUrl : `${API_BASE}${a.avatarUrl}`)
-                  : null;
+                const avatarSrc = resolveAvatar(a.avatarUrl);
                 return (
                   <div key={a.id} className="flex items-center justify-between px-3 py-2 rounded-xl hover:bg-gray-50 transition-colors">
                     <div className="flex items-center gap-2.5">
@@ -186,10 +206,16 @@ function FichaCard({ ficha, currentUserId, onRegenerate, onEdit, onRemoveAprendi
                       </div>
                     </div>
                     {isAdmin && (
-                      <button onClick={() => onRemoveAprendiz(ficha.id, a.id)}
-                        className="btn-icon text-red-400 hover:bg-red-50 w-7 h-7 shrink-0">
-                        <UserMinus size={13}/>
-                      </button>
+                      <div className="flex items-center gap-1">
+                        <button onClick={() => onEnroll(a)}
+                          className="btn-icon text-[#4285F4] hover:bg-blue-50 w-7 h-7 shrink-0" title="Registrar huella/NFC">
+                          <Fingerprint size={14}/>
+                        </button>
+                        <button onClick={() => onRemoveAprendiz(ficha.id, a.id)}
+                          className="btn-icon text-red-400 hover:bg-red-50 w-7 h-7 shrink-0">
+                          <UserMinus size={13}/>
+                        </button>
+                      </div>
                     )}
                   </div>
                 );
@@ -217,6 +243,7 @@ export default function InstructorFichas() {
   const [joinCode, setJoinCode]   = useState('');
   const [saving, setSaving]       = useState(false);
   const [error, setError]         = useState('');
+  const [enrollAprendiz, setEnrollAprendiz] = useState(null);
 
   const load = useCallback(async () => {
     try {
@@ -320,7 +347,9 @@ export default function InstructorFichas() {
           {fichas.map((f, idx) => (
             <FichaCard key={f.id} ficha={f} currentUserId={user?.id}
               color={COLORES[idx % COLORES.length]}
-              onRegenerate={handleRegenerate} onEdit={openEdit} onRemoveAprendiz={handleRemoveAprendiz}/>
+              onRegenerate={handleRegenerate} onEdit={openEdit}
+              onRemoveAprendiz={handleRemoveAprendiz}
+              onEnroll={(a) => setEnrollAprendiz(a)}/>
           ))}
         </div>
       )}
@@ -347,6 +376,12 @@ export default function InstructorFichas() {
           </div>
         </form>
       </Modal>
+
+      <EnrollModal
+        open={!!enrollAprendiz}
+        onClose={() => setEnrollAprendiz(null)}
+        aprendiz={enrollAprendiz}
+      />
     </div>
   );
 }
