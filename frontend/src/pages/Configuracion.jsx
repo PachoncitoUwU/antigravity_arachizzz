@@ -37,17 +37,31 @@ function Section({ icon: Icon, title, children, onTitleClick }) {
   );
 }
 
-// ─── Breakout (más difícil + leaderboard) ────────────────────────────────────
+// ─── La Bolita (Breakout) ─────────────────────────────────────────────────────
 const LS_BREAKOUT = 'arachiz_breakout_lb_cache';
 const getLBBreakout = () => { try { return JSON.parse(localStorage.getItem(LS_BREAKOUT)) || []; } catch { return []; } };
+
 const saveBreakoutScore = async (score, token) => {
   try {
     const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
-    await fetch(`${API_URL}/snake/score`, { // reutilizamos el mismo endpoint por ahora
+    await fetch(`${API_URL}/snake/breakout/score`, {
       method:'POST', headers:{'Content-Type':'application/json', Authorization:`Bearer ${token}`},
-      body: JSON.stringify({ score, game:'breakout' }),
+      body: JSON.stringify({ score }),
     });
   } catch {}
+};
+
+const fetchBreakoutLeaderboard = async () => {
+  try {
+    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+    const res  = await fetch(`${API_URL}/snake/breakout/leaderboard`);
+    const data = await res.json();
+    if (data.scores) {
+      localStorage.setItem(LS_BREAKOUT, JSON.stringify(data.scores));
+      return data.scores;
+    }
+  } catch {}
+  return getLBBreakout();
 };
 
 function BreakoutGame({ onClose, currentUser }) {
@@ -58,10 +72,12 @@ function BreakoutGame({ onClose, currentUser }) {
   const [lb, setLb]         = useState(getLBBreakout());
   const [isMobile, setIsMobile] = useState(window.innerWidth < 700);
   const savedRef  = useRef(false);
-  const deadRef   = useRef(false); // para reiniciar con espacio
+  const deadRef   = useRef(false);
   const restartFn = useRef(null);
 
   useEffect(()=>{
+    // Cargar LB desde API al abrir
+    fetchBreakoutLeaderboard().then(data => setLb(data));
     const onResize=()=>setIsMobile(window.innerWidth<700);
     window.addEventListener('resize',onResize);return()=>window.removeEventListener('resize',onResize);
   },[]);
@@ -159,10 +175,15 @@ function BreakoutGame({ onClose, currentUser }) {
       if(x+dx>canvas.width-ballR||x+dx<ballR)dx=-dx;
       if(y+dy<ballR)dy=-dy;
       else if(y+dy>canvas.height-ballR){
-        if(x>padX&&x<padX+padW){
-          dy=-Math.abs(dy);
-          dx=dx+(x-(padX+padW/2))*0.15; // ángulo según donde golpea
-        } else {
+        const padTop = canvas.height-padH-3;
+        if(y+dy >= padTop-ballR && x > padX-ballR && x < padX+padW+ballR){
+          // Colisión con paleta — reposicionar encima para evitar que entre
+          y = padTop - ballR;
+          dy = -Math.abs(dy);
+          dx = dx + (x-(padX+padW/2))*0.15;
+          // Limitar ángulo extremo
+          if(Math.abs(dx)>8)dx=dx>0?8:-8;
+        } else if(y+dy > canvas.height+ballR) {
           deadRef.current=true;setDead(true);return;
         }
       }
@@ -173,18 +194,14 @@ function BreakoutGame({ onClose, currentUser }) {
     };
     draw();
     return()=>{document.removeEventListener('keydown',kd);document.removeEventListener('keyup',ku);canvas.removeEventListener('mousemove',mm);canvas.removeEventListener('touchmove',tm);cancelAnimationFrame(req);};
-  },[onClose,dead]);
+  },[onClose]); // ← solo onClose, NO dead — evita reinicio al morir
 
   useEffect(()=>{
     if(dead&&!savedRef.current&&score>0){
       savedRef.current=true;
-      const lb=getLBBreakout();
-      const existing=lb.findIndex(e=>e.name===(currentUser?.fullName||'Jugador'));
-      const entry={name:currentUser?.fullName||'Jugador',avatar:currentUser?.avatarUrl||null,score,date:new Date().toLocaleDateString('es-CO')};
-      if(existing>=0){if(score>lb[existing].score)lb[existing]=entry;}else lb.push(entry);
-      lb.sort((a,b)=>b.score-a.score);
-      localStorage.setItem(LS_BREAKOUT,JSON.stringify(lb.slice(0,10)));
-      setLb(lb.slice(0,10));
+      // Guardar en API (global) y actualizar LB
+      saveBreakoutScore(score, localStorage.getItem('token'))
+        .then(()=>fetchBreakoutLeaderboard().then(data=>setLb(data)));
     }
   },[dead,score,currentUser]);
 
@@ -226,7 +243,7 @@ function BreakoutGame({ onClose, currentUser }) {
         {/* Juego */}
         <div style={{...glassPanel,display:'flex',flexDirection:'column',alignItems:'center',gap:12,padding:'14px 14px 10px'}}>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',width:'100%'}}>
-            <span style={{fontWeight:800,color:'white',fontSize:14,letterSpacing:'-0.3px'}}>🧱 Breakout — {score} pts</span>
+            <span style={{fontWeight:800,color:'white',fontSize:14,letterSpacing:'-0.3px'}}>🎯 La Bolita — {score} pts</span>
             <div style={{display:'flex',gap:6}}>
               {/* Botón Top solo en móvil */}
               {isMobile && (

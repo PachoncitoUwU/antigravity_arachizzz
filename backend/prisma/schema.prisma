@@ -30,6 +30,7 @@ model User {
   registros     RegistroAsistencia[]
   excusas       Excusa[]
   snakeScore    SnakeScore?
+  breakoutScore BreakoutScore?
 }
 
 model Ficha {
@@ -143,6 +144,16 @@ model SnakeScore {
   score     Int
   updatedAt DateTime @default(now()) @updatedAt
 
-  userId    String   @unique   // un registro por usuario (solo guarda su mejor score)
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Leaderboard global del juego La Bolita (Breakout)
+model BreakoutScore {
+  id        String   @id @default(cuid())
+  score     Int
+  updatedAt DateTime @default(now()) @updatedAt
+
+  userId    String   @unique
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
