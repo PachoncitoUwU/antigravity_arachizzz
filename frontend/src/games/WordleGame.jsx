@@ -3,7 +3,6 @@ import GameLayout from './GameLayout';
 import { fetchLB, saveGameScore, getCachedLB } from './gameUtils';
 
 // ── Palabra configurable sin rediseñar el juego ──────────────────────────────
-// Cambiar aquí o en variable de entorno VITE_WORDLE_WORD
 const WORD = (import.meta.env.VITE_WORDLE_WORD || 'FICHA').toUpperCase().slice(0, 5);
 const MAX_ATTEMPTS = 6;
 
@@ -14,11 +13,35 @@ const KEYBOARD = [
   ['ENTER','Z','X','C','V','B','N','M','⌫'],
 ];
 
-const evaluate = (guess, word) =>
-  guess.split('').map((l, i) => ({
-    letter: l,
-    state: l === word[i] ? 'correct' : word.includes(l) ? 'present' : 'absent',
-  }));
+// Correct Wordle evaluation with proper duplicate letter handling
+const evaluate = (guess, word) => {
+  const result = Array(5).fill(null).map((_, i) => ({ letter: guess[i], state: 'absent' }));
+  const wordArr = word.split('');
+  const guessArr = guess.split('');
+
+  // Pass 1: mark correct positions (green)
+  const wordUsed = Array(5).fill(false);
+  for (let i = 0; i < 5; i++) {
+    if (guessArr[i] === wordArr[i]) {
+      result[i].state = 'correct';
+      wordUsed[i] = true;
+    }
+  }
+
+  // Pass 2: mark present (yellow) — only if letter not yet consumed
+  for (let i = 0; i < 5; i++) {
+    if (result[i].state === 'correct') continue;
+    for (let j = 0; j < 5; j++) {
+      if (!wordUsed[j] && guessArr[i] === wordArr[j]) {
+        result[i].state = 'present';
+        wordUsed[j] = true;
+        break;
+      }
+    }
+  }
+
+  return result;
+};
 
 const STATE_COLORS = {
   correct: { bg:'#34A853', text:'white' },
@@ -26,6 +49,16 @@ const STATE_COLORS = {
   absent:  { bg:'#374151', text:'white' },
   empty:   { bg:'rgba(255,255,255,0.15)', text:'#1d1d1f' },
   active:  { bg:'rgba(255,255,255,0.4)', text:'#1d1d1f' },
+};
+
+// Daily play tracking
+const DAILY_KEY = 'arachiz_wordle_daily';
+const getTodayStr = () => new Date().toISOString().slice(0, 10);
+const getDailyRecord = () => {
+  try { return JSON.parse(localStorage.getItem(DAILY_KEY)) || {}; } catch { return {}; }
+};
+const setDailyRecord = (data) => {
+  localStorage.setItem(DAILY_KEY, JSON.stringify(data));
 };
 
 export default function WordleGame({ onClose, currentUser }) {
@@ -36,13 +69,27 @@ export default function WordleGame({ onClose, currentUser }) {
   const [shake,    setShake]    = useState(false);
   const savedRef = React.useRef(false);
 
+  // Check if already played today
+  const daily = getDailyRecord();
+  const alreadyPlayedToday = daily.date === getTodayStr();
+
   useEffect(() => { fetchLB('wordle').then(d => setLb(d)); }, []);
 
   useEffect(() => {
     if (phase === 'won' && !savedRef.current) {
       savedRef.current = true;
       const attempts = guesses.length;
-      saveGameScore('wordle', attempts).then(() => fetchLB('wordle').then(d => setLb(d)));
+      const today = getTodayStr();
+      const rec = getDailyRecord();
+
+      // Only save score if first time today
+      if (rec.date !== today) {
+        setDailyRecord({ date: today, attempts, won: true });
+        saveGameScore('wordle', attempts).then(() => fetchLB('wordle').then(d => setLb(d)));
+      } else {
+        // Already played today — just reload LB
+        fetchLB('wordle').then(d => setLb(d));
+      }
     }
   }, [phase, guesses]);
 
@@ -89,6 +136,12 @@ export default function WordleGame({ onClose, currentUser }) {
     <GameLayout title="📝 Wordle" score={score} lb={lb} game="wordle" onClose={onClose}>
       <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:10 }}>
         <style>{`@keyframes shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-6px)}40%,80%{transform:translateX(6px)}}`}</style>
+
+        {alreadyPlayedToday && phase === 'playing' && guesses.length === 0 && (
+          <p style={{ color:'#FBBC05', fontSize:11, margin:0, fontWeight:600 }}>
+            Ya jugaste hoy — tu resultado no se guardará de nuevo
+          </p>
+        )}
 
         {/* Grid de intentos */}
         <div style={{ display:'flex', flexDirection:'column', gap:4 }}>

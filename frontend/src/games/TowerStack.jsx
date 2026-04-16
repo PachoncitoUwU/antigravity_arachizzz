@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect, useCallback } from 'react';
 import GameLayout from './GameLayout';
 import { fetchLB, saveGameScore, getCachedLB } from './gameUtils';
 
-const W = 300, H = 420, BASE_W = 180, BLOCK_H = 22, SPEED_INIT = 2.5;
+const W = 320, H = 460, BASE_W = 180, BLOCK_H = 22, SPEED_INIT = 2.5;
 
 export default function TowerStack({ onClose, currentUser }) {
   const canvasRef = useRef(null);
@@ -105,10 +105,10 @@ export default function TowerStack({ onClose, currentUser }) {
       blocks.push(newBlock);
       sc++; setScore(sc);
 
-      // Subir todos los bloques
-      blocks = blocks.map(b => ({ ...b, y: b.y + BLOCK_H }));
+      // Subir todos los bloques (scroll up para mantener los últimos 8 visibles)
+      blocks = blocks.map(b => ({ ...b, y: b.y - BLOCK_H }));
 
-      // Siguiente bloque
+      // Siguiente bloque aparece arriba
       speed = Math.min(8, SPEED_INIT + sc * 0.15);
       current = { x: sc % 2 === 0 ? 0 : W - newBlock.w, y: blocks[blocks.length - 1].y - BLOCK_H, w: newBlock.w, dir: sc % 2 === 0 ? 1 : -1 };
     };

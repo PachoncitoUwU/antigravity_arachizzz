@@ -43,9 +43,9 @@ export const saveGameScore = async (game, score) => {
 
 // Estilos Liquid Glass reutilizables
 export const glassLight = {
-  background: 'rgba(255,255,255,0.45)',
-  backdropFilter: 'blur(60px) saturate(220%)',
-  WebkitBackdropFilter: 'blur(60px) saturate(220%)',
+  background: 'rgba(255,255,255,0.22)',
+  backdropFilter: 'blur(50px) saturate(200%)',
+  WebkitBackdropFilter: 'blur(50px) saturate(200%)',
   border: '1.5px solid rgba(255,255,255,0.85)',
   borderRadius: 28,
   boxShadow: '0 30px 80px rgba(0,0,0,0.1), inset 0 2px 0 rgba(255,255,255,1)',
@@ -62,9 +62,9 @@ export const glassDark = {
 
 export const overlayStyle = {
   position: 'fixed', inset: 0, zIndex: 200,
-  background: 'rgba(180,200,220,0.2)',
-  backdropFilter: 'blur(28px) saturate(160%)',
-  WebkitBackdropFilter: 'blur(28px) saturate(160%)',
+  background: 'rgba(0,0,0,0.15)',
+  backdropFilter: 'blur(20px)',
+  WebkitBackdropFilter: 'blur(20px)',
   display: 'flex', alignItems: 'center', justifyContent: 'center',
   padding: 12, overflowY: 'auto',
 };

@@ -16,7 +16,7 @@ export default function ReactionTime({ onClose, currentUser }) {
 
   const startRound = useCallback(() => {
     setPhase('waiting'); setMs(null);
-    const delay = 1500 + Math.random() * 3000;
+    const delay = 800 + Math.random() * 1500;
     timerRef.current = setTimeout(() => {
       setPos({ x: 10 + Math.random() * 80, y: 10 + Math.random() * 80 });
       setPhase('ready');
@@ -81,7 +81,7 @@ export default function ReactionTime({ onClose, currentUser }) {
       <div
         onClick={e => { e.stopPropagation(); handleTap(); }}
         style={{
-          width:300, height:300, borderRadius:20, cursor:'pointer',
+          width:360, height:360, borderRadius:20, cursor:'pointer',
           background: BG[phase], position:'relative', overflow:'hidden',
           border:'1.5px solid rgba(255,255,255,0.15)',
           display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',

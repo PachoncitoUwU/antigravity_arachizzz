@@ -7,6 +7,10 @@ const COLORS = [
   { id:1, bg:'#4285F4', light:'#74a9ff', freq:329 },
   { id:2, bg:'#34A853', light:'#5dd87a', freq:392 },
   { id:3, bg:'#FBBC05', light:'#ffd740', freq:523 },
+  { id:4, bg:'#9C27B0', light:'#ce93d8', freq:587 },
+  { id:5, bg:'#FF5722', light:'#ff8a65', freq:659 },
+  { id:6, bg:'#00BCD4', light:'#4dd0e1', freq:698 },
+  { id:7, bg:'#8BC34A', light:'#aed581', freq:784 },
 ];
 
 const playTone = (freq, duration = 300) => {
@@ -46,7 +50,7 @@ export default function MemoryFlash({ onClose, currentUser }) {
     const delay = Math.max(300, 600 - seq.length * 20);
     for (const id of seq) {
       await new Promise(r => setTimeout(r, delay));
-      setActive(id); playTone(COLORS[id].freq, delay * 0.8);
+      setActive(id); playTone(COLORS[id % COLORS.length].freq, delay * 0.8);
       await new Promise(r => setTimeout(r, delay * 0.8));
       setActive(null);
       await new Promise(r => setTimeout(r, delay * 0.2));
@@ -56,14 +60,14 @@ export default function MemoryFlash({ onClose, currentUser }) {
 
   const startGame = useCallback(() => {
     savedRef.current = false;
-    const first = [Math.floor(Math.random() * 4)];
+    const first = [Math.floor(Math.random() * COLORS.length)];
     setSequence(first); setUserSeq([]); setScore(0);
     showSequence(first);
   }, [showSequence]);
 
   const handlePress = useCallback((id) => {
     if (phase !== 'input') return;
-    playTone(COLORS[id].freq, 200);
+    playTone(COLORS[id % COLORS.length].freq, 200);
     setActive(id);
     setTimeout(() => setActive(null), 200);
 
@@ -78,7 +82,7 @@ export default function MemoryFlash({ onClose, currentUser }) {
       const newScore = sequence.length;
       setScore(newScore);
       setUserSeq([]);
-      const next = [...sequence, Math.floor(Math.random() * 4)];
+      const next = [...sequence, Math.floor(Math.random() * COLORS.length)];
       setSequence(next);
       setTimeout(() => showSequence(next), 600);
     } else {
@@ -93,12 +97,16 @@ export default function MemoryFlash({ onClose, currentUser }) {
   }, [onClose]);
 
   const btnStyle = (color, isActive) => ({
-    width: 120, height: 120, borderRadius: 20, border: 'none', cursor: 'pointer',
+    width: 100, height: 100, borderRadius: 20, border: 'none', cursor: 'pointer',
     background: isActive ? color.light : color.bg,
-    boxShadow: isActive ? `0 0 30px ${color.light}` : `0 4px 16px ${color.bg}55`,
+    boxShadow: isActive
+      ? `0 0 40px ${color.light}, 0 0 80px ${color.light}55`
+      : `0 4px 16px ${color.bg}55`,
+    filter: isActive ? 'brightness(1.8) saturate(1.5)' : 'none',
     transform: isActive ? 'scale(1.08)' : 'scale(1)',
     transition: 'all 0.12s ease',
-    opacity: phase === 'showing' ? 0.7 : 1,
+    opacity: phase === 'showing' && active !== color.id ? 0.6 : 1,
+    '@media (max-width: 700px)': { width: 80, height: 80 },
   });
 
   return (
@@ -128,8 +136,8 @@ export default function MemoryFlash({ onClose, currentUser }) {
           </p>
         )}
 
-        {/* Grid 2x2 */}
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+        {/* Grid 4x2 (8 colores) */}
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:10 }}>
           {COLORS.map(color => (
             <button key={color.id}
               style={btnStyle(color, active === color.id)}

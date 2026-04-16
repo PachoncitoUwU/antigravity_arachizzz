@@ -313,14 +313,15 @@ function FlappyGame({ onClose, currentUser }) {
   const canvasRef = useRef(null);
   const rafRef    = useRef(null);
   const savedRef  = useRef(false);
-  const [score,    setScore]    = useState(0);
-  const [dead,     setDead]     = useState(false);
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 700);
-  const [showLB,   setShowLB]   = useState(false);
-  const [lb,       setLb]       = useState(getLBFlappy());
+  const [score,      setScore]      = useState(0);
+  const [dead,       setDead]       = useState(false);
+  const [isMobile,   setIsMobile]   = useState(window.innerWidth < 700);
+  const [showLB,     setShowLB]     = useState(false);
+  const [lb,         setLb]         = useState(getLBFlappy());
+  const [restartKey, setRestartKey] = useState(0);
 
   // Constantes del juego
-  const W=320, H=480, PW=54, GAP=148;
+  const W=340, H=520, PW=54, GAP=148;
 
   useEffect(()=>{
     fetchFlappyLB().then(d=>setLb(d));
@@ -344,108 +345,115 @@ function FlappyGame({ onClose, currentUser }) {
     let isDead = false;
     let req;
 
-    const randTop = () => 55 + Math.random() * (H - GAP - 95);
+    // SVG-style cloud helper
+    const drawCloud = (cx, cy, r) => {
+      ctx.save();
+      ctx.shadowColor = 'rgba(200,220,255,0.4)';
+      ctx.shadowBlur = 8;
+      ctx.fillStyle = 'rgba(255,255,255,0.82)';
+      // Main body
+      ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(cx + r*0.7, cy + r*0.2, r*0.65, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(cx - r*0.6, cy + r*0.2, r*0.55, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(cx + r*0.3, cy - r*0.5, r*0.55, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(cx - r*0.2, cy - r*0.4, r*0.45, 0, Math.PI*2); ctx.fill();
+      ctx.restore();
+    };
 
     const draw = () => {
       ctx.clearRect(0,0,W,H);
 
       // Fondo Glass App
       const bg = ctx.createLinearGradient(0,0,0,H);
-      bg.addColorStop(0,'rgba(230,240,250,0.95)'); 
-      bg.addColorStop(1,'rgba(215,230,245,0.85)');
+      bg.addColorStop(0,'rgba(220,235,255,0.97)');
+      bg.addColorStop(1,'rgba(200,220,245,0.90)');
       ctx.fillStyle = bg;
       ctx.beginPath();
       ctx.roundRect ? ctx.roundRect(0,0,W,H,18) : ctx.rect(0,0,W,H);
       ctx.fill();
 
-      // Nubes decorativas sutiles
-      ctx.fillStyle = 'rgba(255,255,255,0.7)';
-      [[60,80,32],[190,50,22],[280,110,28]].forEach(([cx,cy,r]) => {
-        ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.fill();
-        ctx.beginPath();ctx.arc(cx+r*0.7,cy+5,r*0.65,0,Math.PI*2);ctx.fill();
-        ctx.beginPath();ctx.arc(cx-r*0.6,cy+5,r*0.55,0,Math.PI*2);ctx.fill();
-      });
+      // Nubes SVG-style
+      drawCloud(60, 75, 22);
+      drawCloud(200, 45, 18);
+      drawCloud(295, 105, 20);
 
       // Tuberías de cristal (Glassmorphism)
       pipes.forEach(p => {
         ctx.save();
-        // Sombra suave para la tubería
         ctx.shadowColor = 'rgba(0,122,255,0.25)';
         ctx.shadowBlur = 15;
         ctx.shadowOffsetY = 4;
-
-        // Borde exterior
         ctx.strokeStyle = 'rgba(255,255,255,0.9)';
         ctx.lineWidth = 1.5;
-
-        // Gradiente principal de la tubería (Apple Glass Azul-Verdoso)
         const grd = ctx.createLinearGradient(p.x,0,p.x+PW,0);
         grd.addColorStop(0,'rgba(255,255,255,0.4)');
         grd.addColorStop(0.5,'rgba(230,245,255,0.5)');
         grd.addColorStop(1,'rgba(255,255,255,0.3)');
-
         ctx.fillStyle = grd;
-
         // Tubería Superior
         ctx.beginPath();
         ctx.roundRect ? ctx.roundRect(p.x, 0, PW, p.top, 8) : ctx.rect(p.x, 0, PW, p.top);
         ctx.fill(); ctx.stroke();
-        
-        // Gorro Tubo Superior
+        // Gorro Superior
         ctx.beginPath();
         const capTopY = p.top - 18;
         ctx.roundRect ? ctx.roundRect(p.x - 4, capTopY, PW + 8, 18, 6) : ctx.rect(p.x - 4, capTopY, PW + 8, 18);
         ctx.fillStyle = 'rgba(250,250,255,0.7)';
         ctx.fill(); ctx.stroke();
-
         // Tubería Inferior
         ctx.fillStyle = grd;
         ctx.beginPath();
         const currentGap = p.gap || GAP;
         ctx.roundRect ? ctx.roundRect(p.x, p.top + currentGap, PW, H - p.top - currentGap - 38, 8) : ctx.rect(p.x, p.top + currentGap, PW, H - p.top - currentGap - 38);
         ctx.fill(); ctx.stroke();
-
-        // Gorro Tubo Inferior
+        // Gorro Inferior
         ctx.beginPath();
         const capBotY = p.top + currentGap;
         ctx.roundRect ? ctx.roundRect(p.x - 4, capBotY, PW + 8, 18, 6) : ctx.rect(p.x - 4, capBotY, PW + 8, 18);
         ctx.fillStyle = 'rgba(250,250,255,0.7)';
         ctx.fill(); ctx.stroke();
-
         ctx.restore();
       });
 
-      // Suelo tipo franja minimalista
+      // Suelo
       ctx.fillStyle = 'rgba(255,255,255,0.6)';
       ctx.fillRect(0, H - 38, W, 38);
-      ctx.fillStyle = 'rgba(0,122,255,0.15)'; // Línea de borde del suelo
+      ctx.fillStyle = 'rgba(0,122,255,0.15)';
       ctx.fillRect(0, H - 38, W, 2);
 
-      // Maní con alas 🥜 - Mejorado
+      // Maní con alas animadas (arcos simples)
       ctx.save();
       ctx.translate(bird.x, bird.y);
       const angle = Math.min(Math.max(bird.vy * 0.05,-0.6),1.4);
       ctx.rotate(angle);
-      
-      // Sombra del maní
+
       ctx.shadowColor = 'rgba(0,0,0,0.15)';
       ctx.shadowBlur = 10;
       ctx.shadowOffsetY = 4;
 
-      // Alas
-      const wingFlap = Math.sin(frame*0.4)*10;
-      ctx.fillStyle = 'rgba(255,255,255,0.9)';
-      ctx.beginPath(); ctx.ellipse(-14, -6+wingFlap, 11, 7, -0.5, 0, Math.PI*2); ctx.fill();
-      ctx.beginPath(); ctx.ellipse(14, -6+wingFlap, 11, 7, 0.5, 0, Math.PI*2); ctx.fill();
-      
+      // Alas: dos arcos simples que se animan con Math.sin(frame)
+      const wingY = Math.sin(frame * 0.35) * 8;
+      ctx.fillStyle = 'rgba(255,255,255,0.92)';
+      ctx.strokeStyle = 'rgba(180,200,255,0.7)';
+      ctx.lineWidth = 1;
+      // Ala izquierda
+      ctx.beginPath();
+      ctx.arc(-16, -4 + wingY, 10, Math.PI * 0.8, Math.PI * 2.2);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+      // Ala derecha
+      ctx.beginPath();
+      ctx.arc(16, -4 + wingY, 10, Math.PI * -0.2, Math.PI * 1.2);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+
+      ctx.shadowBlur = 0;
       // Maní
-      ctx.font = '32px serif'; 
-      ctx.textAlign = 'center'; 
+      ctx.font = '32px serif';
+      ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText('🥜', 0, 1);
       ctx.restore();
 
-      // Score premium
+      // Score
       ctx.font = '800 36px system-ui';
       ctx.textAlign = 'center';
       ctx.fillStyle = 'rgba(0,122,255,0.85)';
@@ -464,7 +472,6 @@ function FlappyGame({ onClose, currentUser }) {
         ctx.shadowBlur = 20;
         ctx.fill();
         ctx.shadowBlur = 0;
-
         ctx.fillStyle = '#007aff';
         ctx.font = '800 16px system-ui';
         ctx.fillText('🥜 Toca para volar', W/2, H/2 + 25);
@@ -473,26 +480,18 @@ function FlappyGame({ onClose, currentUser }) {
 
     const tick = () => {
       if(isDead) return;
-
       if(started){
         bird.vy += 0.5;
         bird.y  += bird.vy;
         frame++;
-
-        // Generar tuberías — intervalo se reduce más rápido con el score (más difícil)
         const interval = Math.max(50, 90 - sc * 3.5);
         if(frame % Math.floor(interval) === 0){
-          // GAP (espacio para pasar) se va reduciendo según el score, base 150 hasta bajar a 110
           const currentGap = Math.max(110, GAP - Math.floor(sc * 1.5));
           const topH = 40 + Math.random() * (H - currentGap - 80);
           pipes.push({x: W+10, top: topH, gap: currentGap, scored: false});
         }
-
-        // Mover tuberías
         pipes.forEach(p => { p.x -= speed; });
         pipes = pipes.filter(p => p.x > -PW-10);
-
-        // Puntaje + acelerar
         pipes.forEach(p => {
           if(!p.scored && p.x+PW < bird.x){
             p.scored=true; sc++;
@@ -500,13 +499,9 @@ function FlappyGame({ onClose, currentUser }) {
             speed = Math.min(6.5, 2.8 + sc*0.12);
           }
         });
-
-        // Colisión suelo/techo
         if(bird.y+16 > H-38 || bird.y-16 < 0){
           isDead=true; setDead(true); draw(); return;
         }
-
-        // Colisión tuberías (hitbox justa)
         const hr=13;
         for(const p of pipes){
           const currentGap = p.gap || GAP;
@@ -517,45 +512,52 @@ function FlappyGame({ onClose, currentUser }) {
           }
         }
       }
-
       draw();
       req = requestAnimationFrame(tick);
     };
 
     const doJump = () => {
-      if(isDead) return; // reinicio lo maneja el botón/tecla
+      if(isDead) return;
       if(!started) started=true;
       bird.vy = -9;
     };
 
-    // Exponer jump al exterior via ref
     rafRef.current = { jump: doJump };
-
     req = requestAnimationFrame(tick);
 
     const onKey=(e)=>{
       if(e.key===' '||e.key==='ArrowUp'||e.key==='w'||e.key==='W'){
         e.preventDefault();
-        if(isDead){ setDead(true); return; } // trigger restart via React
+        if(isDead){ setDead(true); return; }
         doJump();
       }
       if(e.key==='Escape') onClose();
     };
     window.addEventListener('keydown', onKey);
 
+    // Swipe up detection
+    let touchStartY = 0;
+    const onTouchStart = (e) => { touchStartY = e.touches[0].clientY; };
+    const onTouchEnd = (e) => {
+      const deltaY = e.changedTouches[0].clientY - touchStartY;
+      if(deltaY < -30) { if(!isDead) doJump(); }
+    };
+    canvas.addEventListener('touchstart', onTouchStart, { passive: true });
+    canvas.addEventListener('touchend', onTouchEnd, { passive: true });
+
     return()=>{
       cancelAnimationFrame(req);
       window.removeEventListener('keydown', onKey);
+      canvas.removeEventListener('touchstart', onTouchStart);
+      canvas.removeEventListener('touchend', onTouchEnd);
     };
-  },[onClose]); // solo onClose — el juego vive en el closure
+  },[restartKey, onClose]);
 
-  // Reiniciar cuando dead cambia a false (después de pulsar Try Again)
-  const [restartKey, setRestartKey] = useState(0);
   const restart = () => {
     savedRef.current = false;
     setScore(0);
     setDead(false);
-    setRestartKey(k=>k+1); // fuerza re-mount del useEffect
+    setRestartKey(k=>k+1);
   };
 
   // Guardar score al morir
@@ -574,8 +576,9 @@ function FlappyGame({ onClose, currentUser }) {
     rafRef.current?.jump?.();
   };
 
-  const btn={width:60,height:60,background:'rgba(255,255,255,0.6)',border:'1.5px solid rgba(255,255,255,0.9)',borderRadius:16,color:'#1d1d1f',fontSize:26,fontWeight:700,cursor:'pointer',boxShadow:'0 4px 16px rgba(0,0,0,0.08)',backdropFilter:'blur(10px)',WebkitBackdropFilter:'blur(10px)',transition:'transform 0.1s',display:'flex',alignItems:'center',justifyContent:'center'};
-  const glass={background:'rgba(255,255,255,0.5)',backdropFilter:'blur(60px) saturate(220%)',WebkitBackdropFilter:'blur(60px) saturate(220%)',border:'1.5px solid rgba(255,255,255,0.9)',borderRadius:28,boxShadow:'0 30px 80px rgba(0,0,0,0.12),inset 0 2px 0 rgba(255,255,255,1)'};
+  const btnSize = isMobile ? 80 : 60;
+  const btn={width:btnSize,height:btnSize,background:'rgba(255,255,255,0.6)',border:'1.5px solid rgba(255,255,255,0.9)',borderRadius:16,color:'#1d1d1f',fontSize:26,fontWeight:700,cursor:'pointer',boxShadow:'0 4px 16px rgba(0,0,0,0.08)',backdropFilter:'blur(10px)',WebkitBackdropFilter:'blur(10px)',transition:'transform 0.1s',display:'flex',alignItems:'center',justifyContent:'center'};
+  const glass={background:'rgba(255,255,255,0.25)',backdropFilter:'blur(50px) saturate(200%)',WebkitBackdropFilter:'blur(50px) saturate(200%)',border:'1.5px solid rgba(255,255,255,0.9)',borderRadius:28,boxShadow:'0 30px 80px rgba(0,0,0,0.12),inset 0 2px 0 rgba(255,255,255,1)'};
 
   const LBPanel=()=>(
     <div style={{display:'flex',flexDirection:'column',gap:8}}>
@@ -604,7 +607,7 @@ function FlappyGame({ onClose, currentUser }) {
   );
 
   return (
-    <div key={restartKey} style={{position:'fixed',inset:0,background:'rgba(180,200,220,0.25)',backdropFilter:'blur(32px) saturate(180%)',WebkitBackdropFilter:'blur(32px) saturate(180%)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:200,padding:12,overflowY:'auto'}} onClick={jump}>
+    <div key={restartKey} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.15)',backdropFilter:'blur(20px)',WebkitBackdropFilter:'blur(20px)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:200,padding:12,overflowY:'auto'}} onClick={jump}>
       <div style={{display:'flex',flexDirection:isMobile?'column':'row',gap:12,alignItems:'flex-start',maxWidth:'98vw'}} onClick={e=>e.stopPropagation()}>
 
         {!isMobile&&(

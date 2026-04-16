@@ -45,7 +45,7 @@ export default function GameLayout({
         )}
 
         {/* Panel del juego */}
-        <div style={{ ...glassLight, padding:'14px 14px 10px', display:'flex', flexDirection:'column', alignItems:'center', gap:10 }}>
+        <div style={{ ...glassLight, padding:'14px 14px 10px', display:'flex', flexDirection:'column', alignItems:'center', gap:10, minWidth:320 }}>
           {/* Header */}
           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', width:'100%' }}>
             <div style={{ display:'flex', alignItems:'baseline', gap:8 }}>
