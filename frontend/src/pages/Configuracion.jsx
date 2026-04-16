@@ -205,99 +205,114 @@ function Leaderboard({ onClose, currentUser }) {
 }
 
 function SnakeGame({ onClose, currentUser }) {
-  const [snake,setSnake]=useState([[8,6],[7,6],[6,6],[5,6]]);
-  const [food,setFood]=useState([12,4]);
-  const [score,setScore]=useState(0);
-  const [dead,setDead]=useState(false);
-  const [speed,setSpeed]=useState(140);
-  const [scoresSaved,setScoresSaved]=useState(false);
-  const [lb,setLb]=useState(getLeaderboard()); // cache local mientras carga
-  const dirRef=useRef([1,0]);
-  const lastDir=useRef([1,0]);
+  const canvasRef = useRef(null);
+  const gRef      = useRef(null);  // todo el estado del juego aquí, sin React state
+  const rafRef    = useRef(null);
+  const savedRef  = useRef(false);
+  const [score, setScore] = useState(0);
+  const [dead,  setDead]  = useState(false);
+  const [lb,    setLb]    = useState(getLeaderboard());
+  const W = COLS*CELL, H = ROWS*CELL;
 
   // Cargar leaderboard desde el servidor al abrir
   useEffect(()=>{
     fetchLeaderboard().then(data=>setLb(data));
   },[]);
 
-  const randFood=(s)=>{let f;do{f=[Math.floor(Math.random()*COLS),Math.floor(Math.random()*ROWS)];}while(s.some(c=>c[0]===f[0]&&c[1]===f[1]));return f;};
-  const tryDir=(next)=>{const cur=lastDir.current;if(cur[0]!==0&&next[0]===-cur[0])return;if(cur[1]!==0&&next[1]===-cur[1])return;dirRef.current=next;};
+  const randFood=(snake)=>{let f;do{f=[Math.floor(Math.random()*COLS),Math.floor(Math.random()*ROWS)];}while(snake.some(c=>c[0]===f[0]&&c[1]===f[1]));return f;};
+
+  const drawGame=(g,ctx)=>{
+    ctx.clearRect(0,0,W,H);
+    const bg=ctx.createLinearGradient(0,0,W,H);
+    bg.addColorStop(0,'rgba(240,248,255,0.95)');bg.addColorStop(1,'rgba(220,240,230,0.9)');
+    ctx.fillStyle=bg;ctx.beginPath();
+    ctx.roundRect?ctx.roundRect(0,0,W,H,22):ctx.rect(0,0,W,H);ctx.fill();
+    g.snake.forEach(([x,y],i)=>{
+      const t=i/Math.max(g.snake.length-1,1);
+      const r=Math.round(52+t*30),gr=Math.round(199-t*60),b=Math.round(89-t*20);
+      ctx.fillStyle=`rgb(${r},${gr},${b})`;
+      ctx.shadowColor=i===0?`rgba(${r},${gr},${b},0.6)`:'transparent';ctx.shadowBlur=i===0?10:0;
+      ctx.beginPath();ctx.roundRect?ctx.roundRect(x*CELL+1,y*CELL+1,CELL-2,CELL-2,i===0?10:6):ctx.rect(x*CELL+1,y*CELL+1,CELL-2,CELL-2);ctx.fill();
+      if(i===0){ctx.shadowBlur=0;ctx.fillStyle='white';ctx.beginPath();ctx.arc(x*CELL+5,y*CELL+5,2.5,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.arc(x*CELL+CELL-5,y*CELL+5,2.5,0,Math.PI*2);ctx.fill();}
+    });
+    ctx.shadowBlur=0;ctx.font=`${CELL-2}px serif`;ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('🍎',g.food[0]*CELL+CELL/2,g.food[1]*CELL+CELL/2);
+  };
+
+  const loop=(ts)=>{
+    const g=gRef.current;const ctx=canvasRef.current?.getContext('2d');
+    if(!g||!ctx||g.dead)return;
+    if(ts-g.lastTick>=g.speed){
+      g.lastTick=ts;g.dir=g.nextDir;
+      const[dx,dy]=g.dir;const head=[g.snake[0][0]+dx,g.snake[0][1]+dy];
+      if(head[0]<0||head[0]>=COLS||head[1]<0||head[1]>=ROWS||g.snake.some(c=>c[0]===head[0]&&c[1]===head[1])){
+        g.dead=true;setDead(true);setScore(g.score);drawGame(g,ctx);return;
+      }
+      const ate=head[0]===g.food[0]&&head[1]===g.food[1];
+      g.snake=[head,...g.snake.slice(0,ate?undefined:-1)];
+      if(ate){g.score+=10;g.food=randFood(g.snake);g.speed=Math.max(60,g.speed-4);setScore(g.score);}
+    }
+    drawGame(g,ctx);rafRef.current=requestAnimationFrame(loop);
+  };
+
+  const startGame=()=>{
+    gRef.current={snake:[[8,6],[7,6],[6,6],[5,6]],food:[12,4],dir:[1,0],nextDir:[1,0],score:0,speed:130,lastTick:0,dead:false};
+    savedRef.current=false;setScore(0);setDead(false);
+    cancelAnimationFrame(rafRef.current);rafRef.current=requestAnimationFrame(loop);
+  };
+
+  useEffect(()=>{startGame();return()=>cancelAnimationFrame(rafRef.current);},[]);
 
   useEffect(()=>{
-    const map={'ArrowUp':DIR.ArrowUp,'ArrowDown':DIR.ArrowDown,'ArrowLeft':DIR.ArrowLeft,'ArrowRight':DIR.ArrowRight,'w':DIR.ArrowUp,'W':DIR.ArrowUp,'s':DIR.ArrowDown,'S':DIR.ArrowDown,'a':DIR.ArrowLeft,'A':DIR.ArrowLeft,'d':DIR.ArrowRight,'D':DIR.ArrowRight};
-    const onKey=(e)=>{if(map[e.key]){e.preventDefault();tryDir(map[e.key]);}if(e.key==='Escape')onClose();};
+    if(dead&&!savedRef.current&&score>0){
+      savedRef.current=true;
+      saveScore(score,localStorage.getItem('token')).then(()=>fetchLeaderboard().then(d=>setLb(d)));
+    }
+  },[dead,score]);
+
+  useEffect(()=>{
+    const KEYS={ArrowUp:[0,-1],ArrowDown:[0,1],ArrowLeft:[-1,0],ArrowRight:[1,0],w:[0,-1],W:[0,-1],s:[0,1],S:[0,1],a:[-1,0],A:[-1,0],d:[1,0],D:[1,0]};
+    const onKey=(e)=>{
+      if(e.key==='Escape'){onClose();return;}
+      const next=KEYS[e.key];if(!next)return;e.preventDefault();
+      const g=gRef.current;if(!g||g.dead)return;
+      if(g.dir[0]!==0&&next[0]===-g.dir[0])return;
+      if(g.dir[1]!==0&&next[1]===-g.dir[1])return;
+      g.nextDir=next; // sin setState — respuesta instantánea
+    };
     window.addEventListener('keydown',onKey);return()=>window.removeEventListener('keydown',onKey);
   },[onClose]);
 
-  useEffect(()=>{
-    if(dead){
-      if(!scoresSaved&&score>0){
-        const token=localStorage.getItem('token');
-        saveScore(score,token).then(()=>{
-          // Recargar leaderboard actualizado
-          fetchLeaderboard().then(data=>setLb(data));
-        });
-        setScoresSaved(true);
-      }
-      return;
-    }
-    const iv=setInterval(()=>{
-      setSnake(prev=>{
-        const[dx,dy]=dirRef.current;lastDir.current=[dx,dy];
-        const head=[prev[0][0]+dx,prev[0][1]+dy];
-        if(head[0]<0||head[0]>=COLS||head[1]<0||head[1]>=ROWS||prev.some(c=>c[0]===head[0]&&c[1]===head[1])){setDead(true);return prev;}
-        const ate=head[0]===food[0]&&head[1]===food[1];
-        const next=[head,...prev.slice(0,ate?undefined:-1)];
-        if(ate){setScore(s=>s+10);setFood(randFood(next));setSpeed(sp=>Math.max(70,sp-5));}
-        return next;
-      });
-    },speed);
-    return()=>clearInterval(iv);
-  },[dead,food,speed,scoresSaved,score]);
-
-  const reset=()=>{
-    const s=[[8,6],[7,6],[6,6],[5,6]];
-    setSnake(s);setFood(randFood(s));
-    dirRef.current=[1,0];lastDir.current=[1,0];
-    setScore(0);setDead(false);setSpeed(140);setScoresSaved(false);
+  const tryDir=(next)=>{
+    const g=gRef.current;if(!g||g.dead)return;
+    if(g.dir[0]!==0&&next[0]===-g.dir[0])return;
+    if(g.dir[1]!==0&&next[1]===-g.dir[1])return;
+    g.nextDir=next;
   };
 
-  const snakeColor=(i,total)=>{const t=i/Math.max(total-1,1);return `rgb(${Math.round(52+t*30)},${Math.round(199-t*60)},${Math.round(89-t*20)})`;};
   const btn={width:56,height:56,background:'rgba(255,255,255,0.6)',border:'1.5px solid rgba(255,255,255,0.9)',borderRadius:16,color:'#1d1d1f',fontSize:20,fontWeight:700,cursor:'pointer',boxShadow:'0 4px 16px rgba(0,0,0,0.08),inset 0 1px 0 rgba(255,255,255,0.8)',backdropFilter:'blur(10px)',WebkitBackdropFilter:'blur(10px)',transition:'transform 0.1s',display:'flex',alignItems:'center',justifyContent:'center'};
-  const W=COLS*CELL, H=ROWS*CELL;
 
-  // Panel leaderboard inline
-  const LBPanel = () => (
-    <div style={{width:200,display:'flex',flexDirection:'column',gap:10}}>
+  const LBPanel=()=>(
+    <div style={{width:190,display:'flex',flexDirection:'column',gap:10}}>
       <div style={{display:'flex',alignItems:'center',gap:6}}>
-        <span style={{fontSize:16,fontWeight:800,color:'#1d1d1f',letterSpacing:'-0.4px'}}>Ranking</span>
-        <span style={{fontSize:16}}>🏆</span>
+        <span style={{fontSize:15,fontWeight:800,color:'#1d1d1f',letterSpacing:'-0.4px'}}>Ranking</span>
+        <span style={{fontSize:15}}>🏆</span>
       </div>
-      {lb.length===0 ? (
-        <div style={{textAlign:'center',padding:'20px 0',color:'#6e6e73',fontSize:12}}>
-          <div style={{fontSize:28,marginBottom:6}}>🎮</div>
-          ¡Sé el primero!
-        </div>
-      ) : (
-        <div style={{display:'flex',flexDirection:'column',gap:6,overflowY:'auto',maxHeight:H+40}}>
+      {lb.length===0?(
+        <div style={{textAlign:'center',padding:'20px 0',color:'#6e6e73',fontSize:12}}><div style={{fontSize:28,marginBottom:6}}>🎮</div>¡Sé el primero!</div>
+      ):(
+        <div style={{display:'flex',flexDirection:'column',gap:5,overflowY:'auto',maxHeight:H}}>
           {lb.map((entry,i)=>{
-            const isTop=i<3;
-            const col=isTop?TOP_COLORS[i]:null;
-            return(
-              <div key={i} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 10px',borderRadius:14,background:isTop?col.bg:'rgba(255,255,255,0.35)',border:isTop?`1px solid ${col.glow}`:'1px solid rgba(255,255,255,0.5)',boxShadow:isTop?`0 3px 12px ${col.glow}`:'none'}}>
-                <span style={{fontSize:isTop?16:12,fontWeight:700,minWidth:20,textAlign:'center',color:isTop?col.text:'#6e6e73'}}>{isTop?MEDAL[i]:i+1}</span>
-                {entry.avatar
-                  ? <img src={entry.avatar} style={{width:28,height:28,borderRadius:8,objectFit:'cover',border:isTop?`1.5px solid ${col.text}`:'1.5px solid rgba(255,255,255,0.7)',flexShrink:0}} alt=""/>
-                  : <div style={{width:28,height:28,borderRadius:8,background:isTop?col.text:'#007aff',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:700,color:'white',flexShrink:0}}>
-                      {entry.name?.split(' ').map(n=>n[0]).slice(0,2).join('').toUpperCase()||'?'}
-                    </div>
-                }
-                <div style={{flex:1,minWidth:0}}>
-                  <p style={{margin:0,fontWeight:700,fontSize:11,color:isTop?col.text:'#1d1d1f',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{entry.name}</p>
-                  <p style={{margin:0,fontSize:10,color:'#6e6e73'}}>{entry.score} pts</p>
-                </div>
+            const isTop=i<3,col=isTop?TOP_COLORS[i]:null;
+            return(<div key={i} style={{display:'flex',alignItems:'center',gap:7,padding:'7px 9px',borderRadius:13,background:isTop?col.bg:'rgba(255,255,255,0.35)',border:isTop?`1px solid ${col.glow}`:'1px solid rgba(255,255,255,0.5)',boxShadow:isTop?`0 3px 10px ${col.glow}`:'none'}}>
+              <span style={{fontSize:isTop?15:11,fontWeight:700,minWidth:18,textAlign:'center',color:isTop?col.text:'#6e6e73'}}>{isTop?MEDAL[i]:i+1}</span>
+              {entry.avatar?<img src={entry.avatar} style={{width:26,height:26,borderRadius:7,objectFit:'cover',border:isTop?`1.5px solid ${col.text}`:'1.5px solid rgba(255,255,255,0.7)',flexShrink:0}} alt=""/>
+                :<div style={{width:26,height:26,borderRadius:7,background:isTop?col.text:'#007aff',display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:700,color:'white',flexShrink:0}}>{entry.name?.split(' ').map(n=>n[0]).slice(0,2).join('').toUpperCase()||'?'}</div>}
+              <div style={{flex:1,minWidth:0}}>
+                <p style={{margin:0,fontWeight:700,fontSize:10,color:isTop?col.text:'#1d1d1f',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{entry.name}</p>
+                <p style={{margin:0,fontSize:9,color:'#6e6e73'}}>{entry.score} pts</p>
               </div>
-            );
+            </div>);
           })}
         </div>
       )}
@@ -306,55 +321,35 @@ function SnakeGame({ onClose, currentUser }) {
 
   return (
     <div style={{position:'fixed',inset:0,background:'rgba(180,200,220,0.25)',backdropFilter:'blur(32px) saturate(180%)',WebkitBackdropFilter:'blur(32px) saturate(180%)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:200,padding:16,overflowY:'auto'}} onClick={onClose}>
-      <style>{`@keyframes appleFloat{from{transform:translateY(0) scale(1)}to{transform:translateY(-3px) scale(1.08)}}@keyframes deadShake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-6px)}40%,80%{transform:translateX(6px)}}`}</style>
-
-      {/* Contenedor principal — leaderboard izquierda + juego derecha */}
-      <div style={{display:'flex',gap:16,alignItems:'flex-start',maxWidth:'95vw'}} onClick={e=>e.stopPropagation()}>
-
-        {/* Panel leaderboard */}
-        <div style={{background:'rgba(255,255,255,0.45)',backdropFilter:'blur(60px) saturate(220%)',WebkitBackdropFilter:'blur(60px) saturate(220%)',border:'1.5px solid rgba(255,255,255,0.9)',borderRadius:28,boxShadow:'0 20px 60px rgba(0,0,0,0.1),inset 0 2px 0 rgba(255,255,255,1)',padding:'20px 16px'}}>
+      <div style={{display:'flex',gap:14,alignItems:'flex-start',maxWidth:'95vw'}} onClick={e=>e.stopPropagation()}>
+        <div style={{background:'rgba(255,255,255,0.45)',backdropFilter:'blur(60px) saturate(220%)',WebkitBackdropFilter:'blur(60px) saturate(220%)',border:'1.5px solid rgba(255,255,255,0.9)',borderRadius:26,boxShadow:'0 20px 60px rgba(0,0,0,0.1),inset 0 2px 0 rgba(255,255,255,1)',padding:'18px 14px'}}>
           <LBPanel/>
         </div>
-
-        {/* Panel juego */}
-        <div style={{background:'rgba(255,255,255,0.5)',backdropFilter:'blur(60px) saturate(220%)',WebkitBackdropFilter:'blur(60px) saturate(220%)',border:'1.5px solid rgba(255,255,255,0.9)',borderRadius:36,boxShadow:'0 40px 100px rgba(0,0,0,0.15),inset 0 2px 0 rgba(255,255,255,1)',padding:'20px 20px 16px',display:'flex',flexDirection:'column',alignItems:'center',gap:14}}>
-
-          {/* Header */}
+        <div style={{background:'rgba(255,255,255,0.5)',backdropFilter:'blur(60px) saturate(220%)',WebkitBackdropFilter:'blur(60px) saturate(220%)',border:'1.5px solid rgba(255,255,255,0.9)',borderRadius:34,boxShadow:'0 40px 100px rgba(0,0,0,0.15),inset 0 2px 0 rgba(255,255,255,1)',padding:'18px 18px 14px',display:'flex',flexDirection:'column',alignItems:'center',gap:12}}>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',width:'100%'}}>
             <div style={{display:'flex',alignItems:'baseline',gap:8}}>
-              <span style={{fontSize:18,fontWeight:800,color:'#1d1d1f',letterSpacing:'-0.5px'}}>Snake</span>
-              <span style={{fontSize:12,fontWeight:500,color:'#6e6e73',background:'rgba(0,0,0,0.06)',padding:'2px 8px',borderRadius:20}}>{score} pts</span>
-              {score>0&&<span style={{fontSize:10,color:'#34c759',fontWeight:600}}>Vel {Math.round((140-speed)/5)+1}x</span>}
+              <span style={{fontSize:17,fontWeight:800,color:'#1d1d1f',letterSpacing:'-0.5px'}}>Snake</span>
+              <span style={{fontSize:12,fontWeight:600,color:'#007aff'}}>{score} pts</span>
             </div>
             <button onClick={onClose} style={{background:'rgba(0,0,0,0.07)',border:'none',borderRadius:20,color:'#1d1d1f',padding:'6px 14px',cursor:'pointer',fontSize:13,fontWeight:600}}>Done</button>
           </div>
-
-          {/* Board */}
-          <div style={{width:W,height:H,background:'linear-gradient(145deg,rgba(240,248,255,0.9),rgba(220,240,230,0.8))',borderRadius:22,position:'relative',overflow:'hidden',boxShadow:'inset 0 2px 16px rgba(0,0,0,0.06)',border:'1.5px solid rgba(255,255,255,0.95)',animation:dead?'deadShake 0.4s ease':'none'}}>
-            {snake.map(([x,y],i)=>{
-              const isHead=i===0;const color=snakeColor(i,snake.length);
-              return(<div key={i} style={{position:'absolute',left:x*CELL+1,top:y*CELL+1,width:CELL-2,height:CELL-2,background:color,borderRadius:isHead?10:6,boxShadow:isHead?`0 3px 12px ${color}99`:`0 1px 4px ${color}55`,transition:'left 0.1s linear,top 0.1s linear',zIndex:isHead?10:5}}>
-                {isHead&&(<><div style={{position:'absolute',width:4,height:4,background:'white',borderRadius:'50%',top:4,left:4}}/><div style={{position:'absolute',width:4,height:4,background:'white',borderRadius:'50%',top:4,right:4}}/></>)}
-              </div>);
-            })}
-            <Apple x={food[0]} y={food[1]}/>
+          <div style={{position:'relative',borderRadius:20,overflow:'hidden',border:'1.5px solid rgba(255,255,255,0.95)',boxShadow:'inset 0 2px 16px rgba(0,0,0,0.06)'}}>
+            <canvas ref={canvasRef} width={W} height={H} style={{display:'block'}}/>
             {dead&&(
-              <div style={{position:'absolute',inset:0,background:'rgba(255,255,255,0.82)',backdropFilter:'blur(16px)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:10,borderRadius:20}}>
-                <span style={{fontSize:40}}>😵</span>
+              <div style={{position:'absolute',inset:0,background:'rgba(255,255,255,0.85)',backdropFilter:'blur(16px)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:10,borderRadius:18}}>
+                <span style={{fontSize:38}}>😵</span>
                 <p style={{color:'#1d1d1f',fontWeight:800,fontSize:20,letterSpacing:'-0.6px',margin:0}}>Game Over</p>
                 <p style={{color:'#6e6e73',fontSize:13,margin:0}}>{score} pts guardados</p>
-                <button onClick={reset} style={{background:'#007aff',color:'white',border:'none',borderRadius:22,padding:'10px 28px',fontSize:14,fontWeight:700,cursor:'pointer',boxShadow:'0 6px 20px rgba(0,122,255,0.4)',marginTop:4}}>Try Again</button>
+                <button onClick={startGame} style={{background:'#007aff',color:'white',border:'none',borderRadius:22,padding:'10px 28px',fontSize:14,fontWeight:700,cursor:'pointer',boxShadow:'0 6px 20px rgba(0,122,255,0.4)',marginTop:4}}>Try Again</button>
               </div>
             )}
           </div>
-
-          {/* Controles */}
           <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:6}}>
-            <button style={btn} onClick={()=>tryDir(DIR['ArrowUp'])} onMouseDown={e=>e.currentTarget.style.transform='scale(0.93)'} onMouseUp={e=>e.currentTarget.style.transform='scale(1)'}>↑</button>
+            <button style={btn} onClick={()=>tryDir([0,-1])} onMouseDown={e=>e.currentTarget.style.transform='scale(0.93)'} onMouseUp={e=>e.currentTarget.style.transform='scale(1)'}>↑</button>
             <div style={{display:'flex',gap:6}}>
-              {['ArrowLeft','ArrowDown','ArrowRight'].map((k,i)=>(
-                <button key={k} style={btn} onClick={()=>tryDir(DIR[k])} onMouseDown={e=>e.currentTarget.style.transform='scale(0.93)'} onMouseUp={e=>e.currentTarget.style.transform='scale(1)'}>
-                  {['←','↓','→'][i]}
+              {[[[-1,0],'←'],[[0,1],'↓'],[[1,0],'→']].map(([d,label],i)=>(
+                <button key={i} style={btn} onClick={()=>tryDir(d)} onMouseDown={e=>e.currentTarget.style.transform='scale(0.93)'} onMouseUp={e=>e.currentTarget.style.transform='scale(1)'}>
+                  {label}
                 </button>
               ))}
             </div>
@@ -365,9 +360,6 @@ function SnakeGame({ onClose, currentUser }) {
     </div>
   );
 }
-
-// ─── Página principal ─────────────────────────────────────────────────────────
-export default function Configuracion() {
   const { user, updateUser } = useContext(AuthContext);
   const { settings, updateSetting, toggleDark } = useSettings();
   const { showToast } = useToast();
