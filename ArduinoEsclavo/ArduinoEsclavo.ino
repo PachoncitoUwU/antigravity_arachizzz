@@ -18,8 +18,6 @@ void sonidoError();
 bool enrolar(int id);
 String hexUID(uint8_t* uid, uint8_t len);
 
-bool isStandby = true; // Inicia ahorrando energía
-
 void setup() {
   Serial.begin(9600);
   pinMode(PIN_BUZZER, OUTPUT);
@@ -38,13 +36,7 @@ void loop() {
   if (Serial.available() > 0) {
     String comando = Serial.readStringUntil('\n');
     comando.trim();
-    if (comando == "SESSION ON") {
-      isStandby = false;
-      Serial.println("DEBUG: Sesion activa - Sensores ENCENDIDOS");
-    } else if (comando == "SESSION OFF") {
-      isStandby = true;
-      Serial.println("DEBUG: Sesion finalizada - Sensores en STANDBY");
-    } else if (comando == "CLEAR_DB") {
+    if (comando == "CLEAR_DB") {
       finger.emptyDatabase();
       Serial.println("DEBUG: Base de datos borrada con exito");
       sonidoExito();
@@ -62,12 +54,6 @@ void loop() {
         }
       }
     }
-  }
-
-  // Ahorro de Energía: Si no hay clase activa, no leer sensores
-  if (isStandby) {
-    delay(200); 
-    return;
   }
 
   // 2. Lectura NFC
@@ -107,9 +93,14 @@ void loop() {
 bool enrolar(int id) {
   int p = -1;
   Serial.println(F("DEBUG: COLOQUE EL DEDO..."));
+  unsigned long start = millis();
   while (p != FINGERPRINT_OK) {
     p = finger.getImage();
-    // Validar si envian comando cancelar por serial... se omite por simplicidad
+    if (millis() - start > 15000) {
+       Serial.println(F("ENROLL_ERROR: Tiempo agotado (15s)."));
+       sonidoError();
+       return false;
+    }
   }
 
   p = finger.image2Tz(1);
@@ -126,12 +117,21 @@ bool enrolar(int id) {
   tone(PIN_BUZZER, 2000, 150); 
   Serial.println(F("DEBUG: QUITE EL DEDO..."));
   delay(1000);
-  while (finger.getImage() != FINGERPRINT_NOFINGER);
+  start = millis();
+  while (finger.getImage() != FINGERPRINT_NOFINGER) {
+    if (millis() - start > 10000) break;
+  }
   
   p = -1;
   Serial.println(F("DEBUG: COLOQUE EL MISMO DEDO OTRA VEZ..."));
+  start = millis();
   while (p != FINGERPRINT_OK) {
     p = finger.getImage();
+    if (millis() - start > 15000) {
+       Serial.println(F("ENROLL_ERROR: Tiempo agotado (15s)."));
+       sonidoError();
+       return false;
+    }
   }
 
   p = finger.image2Tz(2);
