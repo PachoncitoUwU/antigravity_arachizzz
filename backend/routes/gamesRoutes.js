@@ -1,7 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+// Usar DIRECT_URL para evitar el error del pooler pgbouncer con Prisma
+const prisma = new PrismaClient({
+  datasources: { db: { url: process.env.DIRECT_URL || process.env.DATABASE_URL } }
+});
 const authMiddleware = require('../middlewares/authMiddleware');
 
 // Mapa de modelos por juego

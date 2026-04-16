@@ -313,6 +313,7 @@ function FlappyGame({ onClose, currentUser }) {
   const canvasRef = useRef(null);
   const rafRef    = useRef(null);
   const savedRef  = useRef(false);
+  const restartRef = useRef(null);
   const [score,      setScore]      = useState(0);
   const [dead,       setDead]       = useState(false);
   const [isMobile,   setIsMobile]   = useState(window.innerWidth < 700);
@@ -415,10 +416,8 @@ function FlappyGame({ onClose, currentUser }) {
         ctx.restore();
       });
 
-      // Suelo
-      ctx.fillStyle = 'rgba(255,255,255,0.6)';
-      ctx.fillRect(0, H - 38, W, 38);
-      ctx.fillStyle = 'rgba(0,122,255,0.15)';
+      // Suelo — línea sutil sin rectángulo visible
+      ctx.fillStyle = 'rgba(0,122,255,0.12)';
       ctx.fillRect(0, H - 38, W, 2);
 
       // Maní con alas animadas (arcos simples)
@@ -528,7 +527,7 @@ function FlappyGame({ onClose, currentUser }) {
     const onKey=(e)=>{
       if(e.key===' '||e.key==='ArrowUp'||e.key==='w'||e.key==='W'){
         e.preventDefault();
-        if(isDead){ setDead(true); return; }
+        if(isDead){ restartRef.current?.(); return; }
         doJump();
       }
       if(e.key==='Escape') onClose();
@@ -559,6 +558,7 @@ function FlappyGame({ onClose, currentUser }) {
     setDead(false);
     setRestartKey(k=>k+1);
   };
+  restartRef.current = restart;
 
   // Guardar score al morir
   useEffect(()=>{
@@ -1023,21 +1023,22 @@ export default function Configuracion() {
     });
   };
 
-  // El Maní — 7 clicks en "Idioma"
+  // El Maní — 7 clicks en "Idioma" / Memory Flash — 10 clicks en "Idioma"
   const [idiomaClicks, setIdiomaClicks] = useState(0);
   const [showFlappy, setShowFlappy]     = useState(false);
   const idiomaTimer = useRef(null);
   const handleIdiomaClick = () => {
     setIdiomaClicks(n => {
       const next = n + 1;
-      if (next >= 7) { setShowFlappy(true); return 0; }
+      if (next >= 10) { setShowMemory(true); return 0; }
+      if (next >= 7)  { setShowFlappy(true); return next; } // continúa contando hasta 10
       clearTimeout(idiomaTimer.current);
       idiomaTimer.current = setTimeout(() => setIdiomaClicks(0), 2000);
       return next;
     });
   };
 
-  // Tower Stack — 7 clicks en "Notificaciones"
+  // Tower Stack — 7 clicks en "Notificaciones" (todos lo ven)
   const [notiClicks, setNotiClicks] = useState(0);
   const [showTower,  setShowTower]  = useState(false);
   const notiTimer = useRef(null);
@@ -1051,7 +1052,7 @@ export default function Configuracion() {
     });
   };
 
-  // Memory Flash — 7 clicks en "Hardware"
+  // Memory Flash — 7 clicks en "Apariencia" (todos lo ven, no solo instructores)
   const [hwClicks,    setHwClicks]    = useState(0);
   const [showMemory,  setShowMemory]  = useState(false);
   const hwTimer = useRef(null);
@@ -1245,9 +1246,10 @@ export default function Configuracion() {
           <ToggleSwitch checked={settings.notifications} onChange={v=>updateSetting('notifications',v)}
             label="Notificaciones del sistema" description="Alertas de sesiones, excusas y actividad"/>
         </div>
+        {notiClicks > 0 && notiClicks < 7 && <p className="text-xs text-gray-300 text-center mt-1">{7-notiClicks} más...</p>}
       </Section>
 
-      {/* Hardware — solo instructores */}
+      {/* Hardware — solo instructores, Memory Flash oculto aquí con 10 clicks */}
       {user?.userType === 'instructor' && (
         <Section icon={Usb} title="Hardware / Arduino" onTitleClick={handleHwClick}>
           <SerialConnect />
