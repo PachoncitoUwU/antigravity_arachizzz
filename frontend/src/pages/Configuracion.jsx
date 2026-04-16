@@ -777,6 +777,10 @@ function SnakeGame({ onClose, currentUser }) {
   const [score, setScore] = useState(0);
   const [dead,  setDead]  = useState(false);
   const [lb,    setLb]    = useState(getLeaderboard());
+  const [snakeColor, setSnakeColor] = useState('#00ff88');
+  const [foodEmoji, setFoodEmoji] = useState('🍎');
+  const [showColorPicker, setShowColorPicker] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const W = COLS*CELL, H = ROWS*CELL;
 
   // Cargar leaderboard desde el servidor al abrir
@@ -788,20 +792,64 @@ function SnakeGame({ onClose, currentUser }) {
 
   const drawGame=(g,ctx)=>{
     ctx.clearRect(0,0,W,H);
+    
+    // Fondo simple y limpio
     const bg=ctx.createLinearGradient(0,0,W,H);
-    bg.addColorStop(0,'rgba(240,248,255,0.95)');bg.addColorStop(1,'rgba(220,240,230,0.9)');
-    ctx.fillStyle=bg;ctx.beginPath();
-    ctx.roundRect?ctx.roundRect(0,0,W,H,22):ctx.rect(0,0,W,H);ctx.fill();
-    g.snake.forEach(([x,y],i)=>{
-      const t=i/Math.max(g.snake.length-1,1);
-      const r=Math.round(52+t*30),gr=Math.round(199-t*60),b=Math.round(89-t*20);
-      ctx.fillStyle=`rgb(${r},${gr},${b})`;
-      ctx.shadowColor=i===0?`rgba(${r},${gr},${b},0.6)`:'transparent';ctx.shadowBlur=i===0?10:0;
-      ctx.beginPath();ctx.roundRect?ctx.roundRect(x*CELL+1,y*CELL+1,CELL-2,CELL-2,i===0?10:6):ctx.rect(x*CELL+1,y*CELL+1,CELL-2,CELL-2);ctx.fill();
-      if(i===0){ctx.shadowBlur=0;ctx.fillStyle='white';ctx.beginPath();ctx.arc(x*CELL+5,y*CELL+5,2.5,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.arc(x*CELL+CELL-5,y*CELL+5,2.5,0,Math.PI*2);ctx.fill();}
-    });
-    ctx.shadowBlur=0;ctx.font=`${CELL-2}px serif`;ctx.textAlign='center';ctx.textBaseline='middle';
-    ctx.fillText('🍎',g.food[0]*CELL+CELL/2,g.food[1]*CELL+CELL/2);
+    bg.addColorStop(0,'#f8fafc');
+    bg.addColorStop(1,'#e2e8f0');
+    ctx.fillStyle=bg;
+    ctx.fillRect(0,0,W,H); // Usar fillRect en lugar de roundRect para mejor rendimiento
+    
+    // Serpiente como una línea continua y fluida (optimizada)
+    if(g.snake.length > 0) {
+      // Dibujar cuerpo de la serpiente de forma más simple
+      ctx.strokeStyle = snakeColor;
+      ctx.lineWidth = CELL - 6;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      
+      ctx.beginPath();
+      ctx.moveTo(g.snake[0][0] * CELL + CELL/2, g.snake[0][1] * CELL + CELL/2);
+      
+      for(let i = 1; i < g.snake.length; i++) {
+        ctx.lineTo(g.snake[i][0] * CELL + CELL/2, g.snake[i][1] * CELL + CELL/2);
+      }
+      ctx.stroke();
+      
+      // Cabeza de la serpiente (simplificada)
+      const [headX, headY] = g.snake[0];
+      ctx.fillStyle = snakeColor;
+      ctx.beginPath();
+      ctx.arc(headX*CELL+CELL/2, headY*CELL+CELL/2, CELL/2-1, 0, Math.PI*2);
+      ctx.fill();
+      
+      // Ojos de la serpiente (simplificados)
+      ctx.fillStyle = '#ffffff';
+      const eyeSize = 4;
+      const eyeOffset = 7;
+      ctx.beginPath();
+      ctx.arc(headX*CELL+eyeOffset, headY*CELL+eyeOffset, eyeSize, 0, Math.PI*2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(headX*CELL+CELL-eyeOffset, headY*CELL+eyeOffset, eyeSize, 0, Math.PI*2);
+      ctx.fill();
+      
+      // Pupilas
+      ctx.fillStyle = '#000000';
+      ctx.beginPath();
+      ctx.arc(headX*CELL+eyeOffset, headY*CELL+eyeOffset, 2, 0, Math.PI*2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(headX*CELL+CELL-eyeOffset, headY*CELL+eyeOffset, 2, 0, Math.PI*2);
+      ctx.fill();
+    }
+    
+    // Comida personalizable
+    const [fx, fy] = g.food;
+    ctx.font = `${CELL-2}px serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(foodEmoji, fx*CELL+CELL/2, fy*CELL+CELL/2);
   };
 
   const loop=(ts)=>{
@@ -818,13 +866,28 @@ function SnakeGame({ onClose, currentUser }) {
       }
       const ate=head[0]===g.food[0]&&head[1]===g.food[1];
       g.snake=[head,...g.snake.slice(0,ate?undefined:-1)];
-      if(ate){g.score+=10;g.food=randFood(g.snake);g.speed=Math.max(80,g.speed-2);setScore(g.score);}
+      if(ate){
+        g.score+=10;
+        g.food=randFood(g.snake);
+        g.speed=Math.max(50,g.speed-4); // Aumenta velocidad más gradualmente
+        setScore(g.score);
+      }
     }
     drawGame(g,ctx);rafRef.current=requestAnimationFrame(loop);
   };
 
   const startGame=()=>{
-    gRef.current={snake:[[8,6],[7,6],[6,6],[5,6]],food:[12,4],dir:[1,0],nextDir:[1,0],dirQueue:[],score:0,speed:140,lastTick:0,dead:false};
+    gRef.current={
+      snake:[[8,6],[7,6],[6,6],[5,6]],
+      food:[12,4],
+      dir:[1,0],
+      nextDir:[1,0],
+      dirQueue:[],
+      score:0,
+      speed:120, // Velocidad inicial más lenta para móvil
+      lastTick:0,
+      dead:false
+    };
     savedRef.current=false;setScore(0);setDead(false);
     cancelAnimationFrame(rafRef.current);rafRef.current=requestAnimationFrame(loop);
   };
@@ -849,9 +912,85 @@ function SnakeGame({ onClose, currentUser }) {
       if(last[0]!==0&&next[0]===-last[0])return;
       if(last[1]!==0&&next[1]===-last[1])return;
       if(last[0]===next[0]&&last[1]===next[1])return;
-      if(g.dirQueue.length<3)g.dirQueue.push(next);
+      if(g.dirQueue.length<1)g.dirQueue.push(next); // Solo 1 input en cola para máxima respuesta
     };
-    window.addEventListener('keydown',onKey);return()=>window.removeEventListener('keydown',onKey);
+    
+    // Controles táctiles optimizados para móvil
+    let touchStartX = null;
+    let touchStartY = null;
+    let touchStartTime = null;
+    const minSwipeDistance = 15; // Distancia mínima muy corta
+    const maxSwipeTime = 300; // Tiempo máximo para considerar un swipe rápido
+    
+    const onTouchStart = (e) => {
+      e.preventDefault();
+      const touch = e.touches[0];
+      touchStartX = touch.clientX;
+      touchStartY = touch.clientY;
+      touchStartTime = Date.now();
+    };
+    
+    const onTouchMove = (e) => {
+      e.preventDefault(); // Prevenir scroll
+      
+      // Detección en tiempo real para mejor respuesta
+      if (!touchStartX || !touchStartY) return;
+      
+      const touch = e.touches[0];
+      const deltaX = touch.clientX - touchStartX;
+      const deltaY = touch.clientY - touchStartY;
+      
+      const absDeltaX = Math.abs(deltaX);
+      const absDeltaY = Math.abs(deltaY);
+      
+      if (Math.max(absDeltaX, absDeltaY) < minSwipeDistance) return;
+      
+      let next = null;
+      if (absDeltaX > absDeltaY) {
+        next = deltaX > 0 ? [1, 0] : [-1, 0];
+      } else {
+        next = deltaY > 0 ? [0, 1] : [0, -1];
+      }
+      
+      if (next) {
+        const g = gRef.current;
+        if (!g || g.dead) return;
+        const last = g.dirQueue.length > 0 ? g.dirQueue[g.dirQueue.length - 1] : g.dir;
+        if (last[0] !== 0 && next[0] === -last[0]) return;
+        if (last[1] !== 0 && next[1] === -last[1]) return;
+        if (last[0] === next[0] && last[1] === next[1]) return;
+        if (g.dirQueue.length < 1) {
+          g.dirQueue.push(next);
+          // Resetear para permitir nuevo swipe
+          touchStartX = touch.clientX;
+          touchStartY = touch.clientY;
+        }
+      }
+    };
+    
+    const onTouchEnd = (e) => {
+      e.preventDefault();
+      touchStartX = null;
+      touchStartY = null;
+      touchStartTime = null;
+    };
+    
+    const canvas = canvasRef.current;
+    window.addEventListener('keydown',onKey);
+    if (canvas) {
+      canvas.addEventListener('touchstart', onTouchStart, { passive: false });
+      canvas.addEventListener('touchmove', onTouchMove, { passive: false });
+      canvas.addEventListener('touchend', onTouchEnd, { passive: false });
+    }
+    
+    return () => {
+      window.removeEventListener('keydown',onKey);
+      if (canvas) {
+        canvas.removeEventListener('touchstart', onTouchStart);
+        canvas.removeEventListener('touchmove', onTouchMove);
+        canvas.removeEventListener('touchend', onTouchEnd);
+      }
+    };
   },[onClose]);
 
   const tryDir=(next)=>{
@@ -954,19 +1093,67 @@ function SnakeGame({ onClose, currentUser }) {
                   </div>
                 )}
               </div>
-              <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:6}}>
-                <button style={btn} onClick={()=>tryDir([0,-1])} onMouseDown={e=>e.currentTarget.style.transform='scale(0.93)'} onMouseUp={e=>e.currentTarget.style.transform='scale(1)'}>↑</button>
-                <div style={{display:'flex',gap:6}}>
-                  {[[[-1,0],'←'],[[0,1],'↓'],[[1,0],'→']].map(([d,label],i)=>(
-                    <button key={i} style={btn} onClick={()=>tryDir(d)} onMouseDown={e=>e.currentTarget.style.transform='scale(0.93)'} onMouseUp={e=>e.currentTarget.style.transform='scale(1)'}>
-                      {label}
-                    </button>
+              
+              {/* Controles de personalización */}
+              <div style={{display:'flex',flexDirection:'column',gap:8,alignItems:'center'}}>
+                <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',justifyContent:'center'}}>
+                  <span style={{fontSize:12,fontWeight:600,color:'#6e6e73'}}>Color:</span>
+                  {['#00ff88','#ff4757','#3742fa','#ffa502','#7bed9f','#ff6b6b'].map(color=>(
+                    <button key={color} onClick={()=>setSnakeColor(color)}
+                      style={{width:24,height:24,borderRadius:12,background:color,border:snakeColor===color?'2px solid #1d1d1f':'1px solid rgba(255,255,255,0.3)',cursor:'pointer'}}/>
                   ))}
+                  <button onClick={()=>setShowColorPicker(true)}
+                    style={{width:24,height:24,borderRadius:12,background:'linear-gradient(45deg, #ff0000, #00ff00, #0000ff)',border:'1px solid rgba(255,255,255,0.3)',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:700,color:'white'}}>+</button>
+                </div>
+                <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',justifyContent:'center'}}>
+                  <span style={{fontSize:12,fontWeight:600,color:'#6e6e73'}}>Comida:</span>
+                  {['🍎','🍊','🍌','🍇','🍓','🥕','🍒','🥝'].map(emoji=>(
+                    <button key={emoji} onClick={()=>setFoodEmoji(emoji)}
+                      style={{fontSize:16,background:foodEmoji===emoji?'rgba(0,122,255,0.2)':'transparent',border:foodEmoji===emoji?'1px solid #007aff':'1px solid rgba(255,255,255,0.3)',borderRadius:8,padding:'4px 6px',cursor:'pointer'}}>{emoji}</button>
+                  ))}
+                  <button onClick={()=>setShowEmojiPicker(true)}
+                    style={{fontSize:14,background:'transparent',border:'1px solid rgba(255,255,255,0.3)',borderRadius:8,padding:'4px 8px',cursor:'pointer',fontWeight:700,color:'#6e6e73'}}>+</button>
                 </div>
               </div>
+              
+              {/* Color Picker Modal */}
+              {showColorPicker && (
+                <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000}} onClick={()=>setShowColorPicker(false)}>
+                  <div style={{background:'white',borderRadius:16,padding:20,maxWidth:300}} onClick={e=>e.stopPropagation()}>
+                    <h3 style={{margin:'0 0 15px',fontSize:16,fontWeight:700}}>Elige un color</h3>
+                    <input type="color" value={snakeColor} onChange={e=>setSnakeColor(e.target.value)}
+                      style={{width:'100%',height:40,border:'none',borderRadius:8,cursor:'pointer'}}/>
+                    <div style={{display:'flex',gap:8,marginTop:15,justifyContent:'flex-end'}}>
+                      <button onClick={()=>setShowColorPicker(false)}
+                        style={{padding:'8px 16px',border:'1px solid #ddd',borderRadius:8,background:'white',cursor:'pointer'}}>Cancelar</button>
+                      <button onClick={()=>setShowColorPicker(false)}
+                        style={{padding:'8px 16px',border:'none',borderRadius:8,background:'#007aff',color:'white',cursor:'pointer'}}>Listo</button>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {/* Emoji Picker Modal */}
+              {showEmojiPicker && (
+                <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000}} onClick={()=>setShowEmojiPicker(false)}>
+                  <div style={{background:'white',borderRadius:16,padding:20,maxWidth:320,maxHeight:400,overflowY:'auto'}} onClick={e=>e.stopPropagation()}>
+                    <h3 style={{margin:'0 0 15px',fontSize:16,fontWeight:700}}>Elige un emoji</h3>
+                    <div style={{display:'grid',gridTemplateColumns:'repeat(8, 1fr)',gap:8}}>
+                      {['🍎','🍊','🍌','🍇','🍓','🥕','🍒','🥝','🍑','🥭','🍍','🥥','🫐','🍈','🍉','🍋','🥑','🍅','🌶️','🥒','🥬','🥦','🧄','🧅','🌽','🥖','🍞','🥨','🧀','🥚','🍳','🥓','🥩','🍗','🍖','🌭','🍔','🍟','🍕','🥪','🌮','🌯','🥙','🧆','🥘','🍝','🍜','🍲','🍛','🍣','🍱','🥟','🦪','🍤','🍙','🍚','🍘','🍥','🥠','🥮','🍢','🍡','🍧','🍨','🍦','🥧','🧁','🎂','🍰','🍪','🍫','🍬','🍭'].map(emoji=>(
+                        <button key={emoji} onClick={()=>{setFoodEmoji(emoji);setShowEmojiPicker(false);}}
+                          style={{fontSize:20,padding:8,border:'1px solid #ddd',borderRadius:8,background:'white',cursor:'pointer',transition:'background 0.2s'}}
+                          onMouseEnter={e=>e.target.style.background='#f0f0f0'}
+                          onMouseLeave={e=>e.target.style.background='white'}>{emoji}</button>
+                      ))}
+                    </div>
+                    <button onClick={()=>setShowEmojiPicker(false)}
+                      style={{width:'100%',marginTop:15,padding:'10px',border:'none',borderRadius:8,background:'#007aff',color:'white',cursor:'pointer',fontSize:14,fontWeight:600}}>Cerrar</button>
+                  </div>
+                </div>
+              )}
             </>
           )}
-          <p style={{color:'rgba(0,0,0,0.3)',fontSize:10,margin:0}}>Flechas / WASD · Espacio reinicia · ESC cierra</p>
+          <p style={{color:'rgba(0,0,0,0.3)',fontSize:10,margin:0}}>Deslizar para mover · Espacio reinicia · ESC cierra</p>
         </div>
       </div>
     </div>
@@ -1052,16 +1239,16 @@ export default function Configuracion() {
     });
   };
 
-  // Memory Flash — 7 clicks en "Apariencia" (todos lo ven, no solo instructores)
-  const [hwClicks,    setHwClicks]    = useState(0);
-  const [showMemory,  setShowMemory]  = useState(false);
-  const hwTimer = useRef(null);
-  const handleHwClick = () => {
-    setHwClicks(n => {
+  // Memory Flash — 7 clicks en "Español" (todos lo ven)
+  const [espanolClicks, setEspanolClicks] = useState(0);
+  const [showMemory, setShowMemory] = useState(false);
+  const espanolTimer = useRef(null);
+  const handleEspanolClick = () => {
+    setEspanolClicks(n => {
       const next = n + 1;
       if (next >= 7) { setShowMemory(true); return 0; }
-      clearTimeout(hwTimer.current);
-      hwTimer.current = setTimeout(() => setHwClicks(0), 2000);
+      clearTimeout(espanolTimer.current);
+      espanolTimer.current = setTimeout(() => setEspanolClicks(0), 2000);
       return next;
     });
   };
@@ -1226,7 +1413,11 @@ export default function Configuracion() {
         <div className="grid grid-cols-2 gap-3">
           {LANGUAGES.map(({code,label,flag}) => (
             <button key={code} type="button"
-              onClick={() => { updateSetting('language',code); showToast(`Idioma: ${label}`,'info'); }}
+              onClick={() => { 
+                updateSetting('language',code); 
+                showToast(`Idioma: ${label}`,'info');
+                if (code === 'es') handleEspanolClick(); // Solo trigger en Español
+              }}
               className={`flex items-center gap-3 p-3 rounded-xl border-2 transition-all ${settings.language===code?'border-[#4285F4] bg-blue-50':'border-gray-200 hover:border-gray-300'}`}>
               <span className="text-2xl">{flag}</span>
               <div className="text-left">
@@ -1238,6 +1429,7 @@ export default function Configuracion() {
         </div>
         <p className="text-xs text-gray-400 mt-3">Traducción completa al inglés próximamente.</p>
         {idiomaClicks > 0 && idiomaClicks < 7 && <p className="text-xs text-gray-300 text-center mt-1">{7-idiomaClicks} más...</p>}
+        {espanolClicks > 0 && espanolClicks < 7 && <p className="text-xs text-blue-300 text-center mt-1">Memory: {7-espanolClicks} más...</p>}
       </Section>
 
       {/* Notificaciones */}
@@ -1249,9 +1441,9 @@ export default function Configuracion() {
         {notiClicks > 0 && notiClicks < 7 && <p className="text-xs text-gray-300 text-center mt-1">{7-notiClicks} más...</p>}
       </Section>
 
-      {/* Hardware — solo instructores, Memory Flash oculto aquí con 10 clicks */}
+      {/* Hardware — solo instructores */}
       {user?.userType === 'instructor' && (
-        <Section icon={Usb} title="Hardware / Arduino" onTitleClick={handleHwClick}>
+        <Section icon={Usb} title="Hardware / Arduino">
           <SerialConnect />
         </Section>
       )}

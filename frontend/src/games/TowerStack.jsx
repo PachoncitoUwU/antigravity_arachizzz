@@ -33,6 +33,8 @@ export default function TowerStack({ onClose, currentUser }) {
     let sc = 0;
     let isDead = false;
     let req;
+    let cameraY = 0; // Posición de la cámara
+    const PUNTO_DE_VISTA_CRITICO = H / 2; // Mitad de la pantalla
 
     const COLORS = ['#4285F4','#34A853','#FBBC05','#EA4335','#8b5cf6','#ec4899','#06b6d4'];
 
@@ -43,6 +45,10 @@ export default function TowerStack({ onClose, currentUser }) {
       const bg = ctx.createLinearGradient(0, 0, 0, H);
       bg.addColorStop(0, '#0f172a'); bg.addColorStop(1, '#1e293b');
       ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+
+      // Aplicar transformación de cámara
+      ctx.save();
+      ctx.translate(0, cameraY);
 
       // Bloques apilados
       blocks.forEach((b, i) => {
@@ -66,7 +72,9 @@ export default function TowerStack({ onClose, currentUser }) {
         ctx.shadowBlur = 0;
       }
 
-      // Score
+      ctx.restore(); // Restaurar transformación
+
+      // Score (siempre fijo en pantalla)
       ctx.fillStyle = 'white'; ctx.font = 'bold 22px system-ui'; ctx.textAlign = 'center';
       ctx.fillText(sc, W / 2, 36);
 
@@ -105,12 +113,23 @@ export default function TowerStack({ onClose, currentUser }) {
       blocks.push(newBlock);
       sc++; setScore(sc);
 
-      // Subir todos los bloques (scroll up para mantener los últimos 8 visibles)
-      blocks = blocks.map(b => ({ ...b, y: b.y - BLOCK_H }));
+      // Lógica de cámara dinámica
+      const highestBlockY = Math.min(...blocks.map(b => b.y));
+      const screenHighestY = highestBlockY + cameraY;
+      
+      if (screenHighestY < PUNTO_DE_VISTA_CRITICO) {
+        const deltaHeight = PUNTO_DE_VISTA_CRITICO - screenHighestY;
+        cameraY += deltaHeight; // Mover cámara hacia arriba
+      }
 
-      // Siguiente bloque aparece arriba
+      // Siguiente bloque aparece arriba del último
       speed = Math.min(8, SPEED_INIT + sc * 0.15);
-      current = { x: sc % 2 === 0 ? 0 : W - newBlock.w, y: blocks[blocks.length - 1].y - BLOCK_H, w: newBlock.w, dir: sc % 2 === 0 ? 1 : -1 };
+      current = { 
+        x: sc % 2 === 0 ? 0 : W - newBlock.w, 
+        y: newBlock.y - BLOCK_H, 
+        w: newBlock.w, 
+        dir: sc % 2 === 0 ? 1 : -1 
+      };
     };
 
     // Exponer place al exterior

@@ -31,14 +31,14 @@ export default function ReactionTime({ onClose, currentUser }) {
     phaseRef.current = 'waiting';
     const delay = 800 + Math.random() * 1500;
     timerRef.current = setTimeout(() => {
-      setPos({ x: 8 + Math.random() * 75, y: 8 + Math.random() * 75 });
+      setPos({ x: 15 + Math.random() * 70, y: 15 + Math.random() * 70 }); // Más margen para evitar bordes
       setPhase('ready');
       phaseRef.current = 'ready';
       startRef.current = performance.now();
     }, delay);
   }, []);
 
-  const handleTap = useCallback(() => {
+  const handleTap = useCallback((e) => {
     const p = phaseRef.current;
     if (p === 'idle' || p === 'result' || p === 'dead') {
       startRound(); return;
@@ -48,6 +48,22 @@ export default function ReactionTime({ onClose, currentUser }) {
       setPhase('dead'); phaseRef.current = 'dead'; return;
     }
     if (p === 'ready') {
+      // Verificar si el click fue en el círculo verde
+      const rect = e.currentTarget.getBoundingClientRect();
+      const clickX = e.clientX - rect.left;
+      const clickY = e.clientY - rect.top;
+      
+      // Calcular posición del círculo en píxeles
+      const circleX = (pos.x / 100) * 360;
+      const circleY = (pos.y / 100) * 360;
+      
+      // Verificar si el click está dentro del círculo (radio 32px)
+      const distance = Math.sqrt((clickX - circleX) ** 2 + (clickY - circleY) ** 2);
+      if (distance > 32) {
+        // Click fuera del círculo - fallo
+        setPhase('dead'); phaseRef.current = 'dead'; return;
+      }
+      
       const elapsed = Math.round(performance.now() - startRef.current);
       setMs(elapsed);
       setBest(prev => {
@@ -61,7 +77,7 @@ export default function ReactionTime({ onClose, currentUser }) {
       });
       setPhase('result'); phaseRef.current = 'result';
     }
-  }, [startRound]);
+  }, [startRound, pos]);
 
   useEffect(() => {
     const onKey = (e) => {
@@ -152,6 +168,7 @@ export default function ReactionTime({ onClose, currentUser }) {
                     background:'#22c55e',
                     boxShadow:'0 0 30px #22c55e, 0 0 60px #22c55e55',
                     animation:'reactionPulse 0.3s ease-in-out infinite alternate',
+                    cursor:'pointer',
                   }}/>
                 )}
                 <style>{`@keyframes reactionPulse{from{transform:translate(-50%,-50%) scale(1)}to{transform:translate(-50%,-50%) scale(1.18)}}`}</style>
@@ -161,7 +178,7 @@ export default function ReactionTime({ onClose, currentUser }) {
                   {info.text}
                 </p>
                 <p style={{ color:'rgba(255,255,255,0.65)', fontSize:13, margin:0, zIndex:1, textAlign:'center', padding:'0 16px' }}>
-                  {info.sub}
+                  {phase === 'ready' ? 'Toca solo el círculo verde' : info.sub}
                 </p>
               </div>
               <p style={{ color:'rgba(0,0,0,0.3)', fontSize:10, margin:0 }}>Espacio / Toca · ESC cierra</p>

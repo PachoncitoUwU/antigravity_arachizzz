@@ -11,6 +11,10 @@ const COLORS = [
   { id:5, bg:'#FF5722', light:'#ff8a65', freq:659 },
   { id:6, bg:'#00BCD4', light:'#4dd0e1', freq:698 },
   { id:7, bg:'#8BC34A', light:'#aed581', freq:784 },
+  { id:8, bg:'#E91E63', light:'#f48fb1', freq:830 },
+  { id:9, bg:'#FF9800', light:'#ffb74d', freq:880 },
+  { id:10, bg:'#009688', light:'#4db6ac', freq:932 },
+  { id:11, bg:'#673AB7', light:'#9575cd', freq:988 },
 ];
 
 const playTone = (freq, duration = 300) => {
@@ -47,13 +51,13 @@ export default function MemoryFlash({ onClose, currentUser }) {
 
   const showSequence = useCallback(async (seq) => {
     setPhase('showing');
-    const delay = Math.max(300, 600 - seq.length * 20);
+    const delay = Math.max(200, 400 - seq.length * 15); // Más rápido
     for (const id of seq) {
       await new Promise(r => setTimeout(r, delay));
-      setActive(id); playTone(COLORS[id % COLORS.length].freq, delay * 0.8);
-      await new Promise(r => setTimeout(r, delay * 0.8));
+      setActive(id); playTone(COLORS[id % COLORS.length].freq, delay * 0.7);
+      await new Promise(r => setTimeout(r, delay * 0.7));
       setActive(null);
-      await new Promise(r => setTimeout(r, delay * 0.2));
+      await new Promise(r => setTimeout(r, delay * 0.15));
     }
     setPhase('input');
   }, []);
@@ -96,22 +100,28 @@ export default function MemoryFlash({ onClose, currentUser }) {
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  const btnStyle = (color, isActive) => ({
-    width: 100, height: 100, borderRadius: 20, border: 'none', cursor: 'pointer',
-    background: isActive ? color.light : color.bg,
-    boxShadow: isActive
-      ? `0 0 40px ${color.light}, 0 0 80px ${color.light}55`
-      : `0 4px 16px ${color.bg}55`,
-    filter: isActive ? 'brightness(1.8) saturate(1.5)' : 'none',
-    transform: isActive ? 'scale(1.08)' : 'scale(1)',
-    transition: 'all 0.12s ease',
-    opacity: phase === 'showing' && active !== color.id ? 0.6 : 1,
-    '@media (max-width: 700px)': { width: 80, height: 80 },
-  });
+  const btnStyle = (color, isActive) => {
+    const isMobile = window.innerWidth < 700;
+    return {
+      width: isMobile ? 80 : 100, 
+      height: isMobile ? 80 : 100, 
+      borderRadius: 16, 
+      border: 'none', 
+      cursor: 'pointer',
+      background: isActive ? color.light : color.bg,
+      boxShadow: isActive
+        ? `0 0 40px ${color.light}, 0 0 80px ${color.light}55`
+        : `0 4px 16px ${color.bg}55`,
+      filter: isActive ? 'brightness(1.8) saturate(1.5)' : 'none',
+      transform: isActive ? 'scale(1.08)' : 'scale(1)',
+      transition: 'all 0.12s ease',
+      opacity: phase === 'showing' && active !== color.id ? 0.6 : 1,
+    };
+  };
 
   return (
     <GameLayout title="🧠 Memory Flash" score={score} lb={lb} game="memory" onClose={onClose}>
-      <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:16, padding:'8px 0' }}>
+      <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:16, padding:'8px 0', width:'100%', maxWidth:'min(450px, 95vw)' }}>
         {phase === 'idle' && (
           <button onClick={startGame}
             style={{ background:'#007aff', color:'white', border:'none', borderRadius:22, padding:'12px 32px', fontSize:15, fontWeight:700, cursor:'pointer', boxShadow:'0 6px 20px rgba(0,122,255,0.4)' }}>
@@ -132,12 +142,19 @@ export default function MemoryFlash({ onClose, currentUser }) {
 
         {(phase === 'showing' || phase === 'input') && (
           <p style={{ color:'#6e6e73', fontSize:12, margin:0 }}>
-            {phase === 'showing' ? '👀 Memoriza la secuencia...' : '👆 Tu turno'}
+            {phase === 'showing' ? '👀 Memoriza la secuencia...' : '👆 Oprimir varias veces'}
           </p>
         )}
 
-        {/* Grid 4x2 (8 colores) */}
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:10 }}>
+        {/* Grid 2x4 en móvil, 3x4 en desktop (12 colores) - Responsive */}
+        <div style={{ 
+          display:'grid', 
+          gridTemplateColumns: window.innerWidth < 700 ? 'repeat(4, 1fr)' : 'repeat(4, 1fr)', 
+          gridTemplateRows: window.innerWidth < 700 ? 'repeat(3, 1fr)' : 'repeat(3, 1fr)',
+          gap: window.innerWidth < 700 ? 10 : 12,
+          width:'100%',
+          maxWidth: window.innerWidth < 700 ? '360px' : '460px'
+        }}>
           {COLORS.map(color => (
             <button key={color.id}
               style={btnStyle(color, active === color.id)}
@@ -146,12 +163,6 @@ export default function MemoryFlash({ onClose, currentUser }) {
             />
           ))}
         </div>
-
-        {phase !== 'idle' && phase !== 'dead' && (
-          <p style={{ color:'rgba(0,0,0,0.3)', fontSize:10, margin:0 }}>
-            Ronda {sequence.length} · ESC cierra
-          </p>
-        )}
       </div>
     </GameLayout>
   );
