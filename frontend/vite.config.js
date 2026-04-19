@@ -16,7 +16,7 @@ function getLocalIP() {
 
 export default defineConfig({
   build: {
-    minify: 'esbuild', // Usar esbuild para minificación (más rápido que terser)
+    minify: 'esbuild',
   },
   plugins: [
     react(),
