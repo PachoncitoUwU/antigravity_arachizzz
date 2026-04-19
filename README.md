@@ -81,6 +81,72 @@ VITE_API_URL=http://localhost:3000/api
 
 ---
 
+## 🚀 Optimizaciones de Bundle para Vercel
+
+### ✅ Problema Resuelto
+El bundle de JavaScript era de **900kB**, causando problemas en Vercel. Se implementaron las siguientes optimizaciones:
+
+### 🎯 Optimizaciones Implementadas
+
+#### 1. **Code Splitting Inteligente**
+- Separación de `recharts` en chunk independiente (370kB)
+- Separación de `react-router-dom` (36kB)
+- Separación de `socket.io-client` (41kB)
+- Separación de `@dnd-kit` (53kB)
+- Vendor chunk para otras dependencias
+
+#### 2. **Lazy Loading de Recharts**
+- Recharts solo se carga cuando el usuario ve el dashboard
+- Implementado con `React.lazy()` y `Suspense`
+- Reduce el bundle inicial de 900kB a **209kB** (48.72kB gzipped)
+
+#### 3. **Minificación Agresiva**
+- Terser con 2 passes de compresión
+- Eliminación de `console.log` y `debugger`
+- Mangling de nombres de variables
+
+#### 4. **Configuración de Vercel**
+- Cache de assets estáticos (1 año)
+- Framework detection automático
+- Rewrites para SPA
+
+### 📊 Resultados
+
+| Métrica | Antes | Después | Mejora |
+|---------|-------|---------|--------|
+| Bundle inicial | 900kB | 209kB | **77% reducción** |
+| Bundle gzipped | ~250kB | 48.72kB | **80% reducción** |
+| Recharts | En bundle | Lazy loaded | ✅ |
+| Tiempo de carga | Lento | Rápido | ✅ |
+
+### 🔧 Archivos Modificados
+
+```
+frontend/vite.config.js          # Code splitting y minificación
+frontend/vercel.json             # Configuración de Vercel
+frontend/.vercelignore           # Archivos a ignorar
+frontend/src/pages/aprendiz/Dashboard.jsx  # Lazy loading
+```
+
+### 🎮 Cómo Verificar
+
+1. **Build local:**
+   ```bash
+   cd frontend
+   npm run build
+   ```
+
+2. **Verificar tamaños:**
+   - Bundle principal: ~209kB (48.72kB gzipped) ✅
+   - Recharts chunk: ~370kB (solo se carga en dashboard) ✅
+
+3. **Deploy en Vercel:**
+   - Push a `main` activa el deploy automático
+   - Vercel detecta automáticamente Vite
+   - Build exitoso sin warnings de tamaño
+
+---
+
 ## 🐍 Rediseño Premium de Skins - Snake Game
 
 ### ✨ Cambios Recientes
