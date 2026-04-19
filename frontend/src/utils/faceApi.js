@@ -23,6 +23,20 @@ export async function loadFaceModels() {
 }
 
 /**
+ * Detecta TODAS las caras en un elemento <video> o <img>.
+ * Retorna array de Float32Array (uno por cara) — vacío si no hay ninguna.
+ * Ideal para escáner de asistencia donde pueden estar varios en cuadro.
+ */
+export async function detectAllFaceDescriptors(videoElement) {
+  const detections = await faceapi
+    .detectAllFaces(videoElement, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.45 }))
+    .withFaceLandmarks(true)
+    .withFaceDescriptors();
+
+  return detections.map(d => d.descriptor); // Float32Array[]
+}
+
+/**
  * Detecta la cara en un elemento <video> o <img> y retorna el descriptor facial (Float32Array de 128 valores).
  * Retorna null si no detecta ninguna cara.
  */
