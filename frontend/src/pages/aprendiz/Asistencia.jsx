@@ -87,7 +87,13 @@ export default function AprendizAsistencia() {
                     <div>
                       <p className="text-sm font-semibold text-gray-800">{r.asistencia?.materia?.nombre}</p>
                        <p className="text-xs text-gray-500 mt-0.5">
-                         {r.asistencia?.fecha} · Registrado por {r.metodo === 'nfc' ? 'Lector NFC' : r.metodo === 'huella' ? 'Lector Dactilar' : 'Instructor'}
+                         {r.asistencia?.fecha} · Registrado por {
+                           r.metodo === 'nfc' ? 'Lector NFC' :
+                           r.metodo === 'huella' ? 'Lector Dactilar' :
+                           r.metodo === 'facial' ? '🎭 Reconocimiento Facial' :
+                           r.metodo === 'qr' ? 'Código QR' :
+                           'Instructor'
+                         }
                        </p>
                     </div>
                   </div>

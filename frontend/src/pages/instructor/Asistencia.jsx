@@ -5,8 +5,10 @@ import {
 import fetchApi from '../../services/api';
 import PageHeader from '../../components/PageHeader';
 import EmptyState from '../../components/EmptyState';
+import Modal from '../../components/Modal';
+import FacialScanner from '../../components/FacialScanner';
 import { useToast } from '../../context/ToastContext';
-import { Play, Square, Users, CheckCircle, Clock, BookOpen, BarChart2, Download } from 'lucide-react';
+import { Play, Square, Users, CheckCircle, Clock, BookOpen, BarChart2, Download, ScanFace } from 'lucide-react';
 import { io } from 'socket.io-client';
 
 const API_BASE = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3000';
@@ -48,6 +50,7 @@ export default function InstructorAsistencia() {
   const [starting, setStarting] = useState(false);
   const [selectedFecha, setSelectedFecha] = useState(() => new Date().toISOString().split('T')[0]); // Se deja internamente si es necesario, pero se oculta o elimina
   const [tab, setTab] = useState('sesion'); // 'sesion' | 'estadisticas'
+  const [facialScannerOpen, setFacialScannerOpen] = useState(false);
   const socketRef = useRef(null);
 
   useEffect(() => {
@@ -292,9 +295,15 @@ export default function InstructorAsistencia() {
                     <Play size={16}/> {starting ? 'Iniciando...' : 'Iniciar Sesión'}
                   </button>
                 ) : (
-                  <button onClick={endSession} className="btn-danger flex items-center gap-2">
-                    <Square size={16}/> Finalizar Sesión
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => setFacialScannerOpen(true)}
+                      className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#4285F4] text-white text-sm font-semibold hover:bg-blue-600 transition-all shadow-sm">
+                      <ScanFace size={16}/> Escáner Facial
+                    </button>
+                    <button onClick={endSession} className="btn-danger flex items-center gap-2">
+                      <Square size={16}/> Finalizar Sesión
+                    </button>
+                  </div>
                 )}
               </div>
             </div>
@@ -461,6 +470,36 @@ export default function InstructorAsistencia() {
           )}
         </div>
       )}
+      {/* Modal Escáner Facial */}
+      <Modal open={facialScannerOpen} onClose={() => setFacialScannerOpen(false)} title="Registro por Reconocimiento Facial">
+        {activeSession && (
+          <FacialScanner
+            asistenciaId={activeSession.id}
+            fichaId={activeSession.materia?.ficha?.id}
+            aprendices={activeSession.materia?.ficha?.aprendices || []}
+            alreadyRegistered={new Set((activeSession.registros || []).map(r => r.aprendizId))}
+            onRegistered={(aprendiz) => {
+              showToast(`✓ ${aprendiz.fullName} marcado como presente`, 'success');
+              setActiveSession(prev => {
+                if (!prev) return prev;
+                if (prev.registros?.some(r => r.aprendizId === aprendiz.id)) return prev;
+                return {
+                  ...prev,
+                  registros: [...(prev.registros || []), {
+                    id: 'facial-' + Date.now(),
+                    aprendizId: aprendiz.id,
+                    aprendiz: { fullName: aprendiz.fullName },
+                    presente: true,
+                    metodo: 'facial',
+                    timestamp: new Date().toISOString()
+                  }]
+                };
+              });
+            }}
+            onClose={() => setFacialScannerOpen(false)}
+          />
+        )}
+      </Modal>
     </div>
   );
 }

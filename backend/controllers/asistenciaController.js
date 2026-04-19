@@ -25,7 +25,7 @@ const createSession = async (req, res) => {
       },
       include: {
         registros: { include: { aprendiz: { select: { fullName: true, document: true } } } },
-        materia: { include: { ficha: { select: { numero: true, aprendices: { select: { id: true, fullName: true, document: true, nfcUid: true, huellas: true } } } } } }
+        materia: { include: { ficha: { select: { numero: true, aprendices: { select: { id: true, fullName: true, document: true, nfcUid: true, huellas: true, faceDescriptor: true } } } } } }
       }
     });
     const io = req.app.get('io');
@@ -249,7 +249,7 @@ const getActiveSession = async (req, res) => {
         materia: {
           include: {
             ficha: {
-              include: { aprendices: { select: { id: true, fullName: true, document: true, nfcUid: true, huellas: true } } }
+              include: { aprendices: { select: { id: true, fullName: true, document: true, nfcUid: true, huellas: true, faceDescriptor: true } } }
             },
             instructor: { select: { fullName: true } }
           }
@@ -273,7 +273,7 @@ const getSessionById = async (req, res) => {
         materia: {
           include: {
             ficha: {
-              include: { aprendices: { select: { id: true, fullName: true, document: true, nfcUid: true, huellas: true } } }
+              include: { aprendices: { select: { id: true, fullName: true, document: true, nfcUid: true, huellas: true, faceDescriptor: true } } }
             },
             instructor: { select: { fullName: true } }
           }
@@ -297,7 +297,7 @@ const getMyActiveAnySession = async (req, res) => {
         materia: {
           include: {
             ficha: {
-              include: { aprendices: { select: { id: true, fullName: true, document: true, nfcUid: true, huellas: true } } }
+              include: { aprendices: { select: { id: true, fullName: true, document: true, nfcUid: true, huellas: true, faceDescriptor: true } } }
             },
             instructor: { select: { fullName: true } }
           }
@@ -310,4 +310,61 @@ const getMyActiveAnySession = async (req, res) => {
   }
 };
 
-module.exports = { createSession, getSessionsByMateria, getMyAttendance, registerAttendance, registerHardwareAttendance, endSession, getActiveSession, getSessionById, getMyActiveAnySession };
+// Registrar asistencia por reconocimiento facial (instructor)
+// El instructor ya identificó al aprendiz en el frontend
+const registerFacialAttendance = async (req, res) => {
+  const { asistenciaId, aprendizId } = req.body;
+  if (!asistenciaId || !aprendizId) {
+    return res.status(400).json({ error: 'Faltan asistenciaId o aprendizId' });
+  }
+
+  try {
+    const asistencia = await prisma.asistencia.findUnique({
+      where: { id: asistenciaId },
+      include: { materia: { include: { ficha: { include: { aprendices: true } } } } }
+    });
+    if (!asistencia || !asistencia.activa) {
+      return res.status(400).json({ error: 'Sesión inactiva o no encontrada' });
+    }
+
+    const perteneceAFicha = asistencia.materia.ficha.aprendices.some(a => a.id === aprendizId);
+    if (!perteneceAFicha) {
+      return res.status(403).json({ error: 'Aprendiz no pertenece a esta ficha' });
+    }
+
+    const existing = await prisma.registroAsistencia.findUnique({
+      where: { asistenciaId_aprendizId: { asistenciaId, aprendizId } }
+    });
+    if (existing) {
+      return res.status(400).json({ error: 'Este aprendiz ya registró asistencia' });
+    }
+
+    const registro = await prisma.registroAsistencia.create({
+      data: {
+        presente: true,
+        metodo: 'facial',
+        asistencia: { connect: { id: asistenciaId } },
+        aprendiz: { connect: { id: aprendizId } }
+      },
+      include: { aprendiz: { select: { fullName: true, document: true } } }
+    });
+
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`session_${asistenciaId}`).emit('nuevaAsistencia', {
+        aprendizId,
+        fullName: registro.aprendiz.fullName,
+        presente: true,
+        metodo: 'facial',
+        timestamp: registro.timestamp
+      });
+    }
+
+    res.json({ message: 'Asistencia facial registrada', registro });
+  } catch (err) {
+    res.status(500).json({ error: 'Error: ' + err.message });
+  }
+};
+
+module.exports = { createSession, getSessionsByMateria, getMyAttendance, registerAttendance, registerHardwareAttendance, endSession, getActiveSession, getSessionById, getMyActiveAnySession, registerFacialAttendance };
+

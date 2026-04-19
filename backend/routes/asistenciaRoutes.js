@@ -14,6 +14,8 @@ router.get('/my-active-any', roleMiddleware(['instructor']), asistenciaControlle
 router.get('/:id', asistenciaController.getSessionById);
 router.post('/registrar', roleMiddleware(['aprendiz']), asistenciaController.registerAttendance);
 router.post('/hardware-register', roleMiddleware(['instructor']), asistenciaController.registerHardwareAttendance);
+router.post('/facial-register', roleMiddleware(['instructor']), asistenciaController.registerFacialAttendance);
 router.put('/:id/finalizar', roleMiddleware(['instructor']), asistenciaController.endSession);
 
 module.exports = router;
+
