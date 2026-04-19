@@ -860,9 +860,13 @@ function SnakeGame({ onClose, currentUser }) {
   const drawGame=(g,ctx)=>{
     ctx.clearRect(0,0,W,H);
 
-    // Fondo claro
-    ctx.fillStyle='rgba(248,250,252,0.9)';
+    // Cuadrícula y fondo bonito
+    ctx.fillStyle='#0f172a'; // Fondo oscuro moderno
     ctx.fillRect(0,0,W,H);
+    ctx.strokeStyle='rgba(255,255,255,0.05)';
+    ctx.lineWidth=1;
+    for(let i=0; i<=W; i+=CELL){ ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,H); ctx.stroke(); }
+    for(let j=0; j<=H; j+=CELL){ ctx.beginPath(); ctx.moveTo(0,j); ctx.lineTo(W,j); ctx.stroke(); }
 
     const skin = equippedSkinRef.current;
     const baseColor = snakeColorRef.current;
@@ -968,7 +972,9 @@ function SnakeGame({ onClose, currentUser }) {
       g.snake=[head,...g.snake.slice(0,ate?undefined:-1)];
       if(ate){
         g.score+=10;
-        g.food=randFood(g.snake);
+        let newFood = randFood(g.snake);
+        while(newFood[0]===head[0] && newFood[1]===head[1]) { newFood = randFood(g.snake); }
+        g.food = newFood;
         g.speed=Math.max(50,g.speed-4); // Aumenta velocidad más gradualmente
         setScore(g.score);
       }
@@ -1014,10 +1020,9 @@ function SnakeGame({ onClose, currentUser }) {
       const next=KEYS[e.key];if(!next)return;e.preventDefault();
       const g=gRef.current;if(!g||g.dead)return;
       const last=g.dirQueue.length>0?g.dirQueue[g.dirQueue.length-1]:g.dir;
-      if(last[0]!==0&&next[0]===-last[0])return;
-      if(last[1]!==0&&next[1]===-last[1])return;
-      if(last[0]===next[0]&&last[1]===next[1])return;
-      if(g.dirQueue.length<1)g.dirQueue.push(next); // Solo 1 input en cola para máxima respuesta
+      if(last[0]===-next[0] && last[1]===-next[1]) return;
+      if(last[0]===next[0] && last[1]===next[1]) return;
+      if(g.dirQueue.length<2) g.dirQueue.push(next); // Max 2 inputs in queue
     };
     
     // Controles táctiles optimizados para móvil - TODA LA PANTALLA
@@ -1065,10 +1070,9 @@ function SnakeGame({ onClose, currentUser }) {
         const g = gRef.current;
         if (!g || g.dead) return;
         const last = g.dirQueue.length > 0 ? g.dirQueue[g.dirQueue.length - 1] : g.dir;
-        if (last[0] !== 0 && next[0] === -last[0]) return;
-        if (last[1] !== 0 && next[1] === -last[1]) return;
-        if (last[0] === next[0] && last[1] === next[1]) return;
-        if (g.dirQueue.length < 1) {
+        if (last[0]===-next[0] && last[1]===-next[1]) return;
+        if (last[0]===next[0] && last[1]===next[1]) return;
+        if (g.dirQueue.length < 2) {
           g.dirQueue.push(next);
           // Resetear para permitir nuevo swipe
           touchStartX = touch.clientX;
