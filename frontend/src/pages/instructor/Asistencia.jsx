@@ -100,12 +100,23 @@ export default function InstructorAsistencia() {
   const connectSocket = (sessionId) => {
     if (socketRef.current) socketRef.current.disconnect();
     const socket = io(API_BASE);
+    console.log('[Socket] Conectando a sesión:', sessionId);
     socket.emit('joinSession', sessionId);
+    
+    socket.on('connect', () => {
+      console.log('[Socket] Conectado, ID:', socket.id);
+    });
+    
     socket.on('nuevaAsistencia', (data) => {
+      console.log('[Socket] Nueva asistencia recibida:', data);
       setActiveSession(prev => {
         if (!prev) return prev;
-        if (prev.registros?.some(r => r.aprendizId === data.aprendizId)) return prev;
-        return { ...prev, registros: [...(prev.registros || []), { ...data, id: Date.now() }] };
+        if (prev.registros?.some(r => r.aprendizId === data.aprendizId)) {
+          console.log('[Socket] Registro duplicado, ignorando');
+          return prev;
+        }
+        showToast(`✓ ${data.aprendiz?.fullName || 'Aprendiz'} registrado`, 'success');
+        return { ...prev, registros: [...(prev.registros || []), { ...data, id: data.id || Date.now() }] };
       });
     });
 

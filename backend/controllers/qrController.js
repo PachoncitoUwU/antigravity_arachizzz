@@ -140,10 +140,20 @@ exports.validateQR = async (req, res) => {
     // Emitir evento socket
     const io = req.app.get('io');
     if (io) {
-      io.to(`session_${qrData.asistenciaId}`).emit('nuevaAsistencia', {
-        ...registro,
-        metodo: 'qr'
+      console.log(`[QR] Emitiendo nuevaAsistencia a session_${qrData.asistenciaId}`, {
+        aprendizId: registro.aprendizId,
+        fullName: registro.aprendiz.fullName
       });
+      io.to(`session_${qrData.asistenciaId}`).emit('nuevaAsistencia', {
+        id: registro.id,
+        aprendizId: registro.aprendizId,
+        aprendiz: registro.aprendiz,
+        presente: registro.presente,
+        metodo: 'qr',
+        timestamp: registro.timestamp
+      });
+    } else {
+      console.log('[QR] Socket.io no disponible');
     }
 
     // Eliminar el código usado
