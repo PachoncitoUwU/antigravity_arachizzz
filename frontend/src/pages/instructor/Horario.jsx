@@ -9,7 +9,7 @@ import PageHeader from '../../components/PageHeader';
 import Modal from '../../components/Modal';
 import EmptyState from '../../components/EmptyState';
 import { useToast } from '../../context/ToastContext';
-import { Calendar, Plus, Trash2, Clock, Edit2, GripVertical, CheckCircle2 } from 'lucide-react';
+import { Calendar, Plus, Trash2, Clock, Edit2, GripVertical, CheckCircle2, Check } from 'lucide-react';
 
 const DIAS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 
@@ -66,10 +66,11 @@ function MateriaDisponible({ materia, enHorario, color }) {
 }
 
 // ─── Bloque draggable en el calendario ───────────────────────────────────────
-function HorarioBloque({ horario, onDelete, onEdit, isDragging, color }) {
+function HorarioBloque({ horario, onEdit, isDragging, color, modoEditar, modoEliminar, isSelected, onToggleSelect }) {
   const { attributes, listeners, setNodeRef, transform } = useDraggable({ 
     id: horario.id,
-    data: { type: 'horario', horario }
+    data: { type: 'horario', horario },
+    disabled: modoEditar || modoEliminar // Deshabilitar drag cuando está en modo editar o eliminar
   });
 
   const style = transform ? {
@@ -77,47 +78,57 @@ function HorarioBloque({ horario, onDelete, onEdit, isDragging, color }) {
     zIndex: 50,
   } : {};
 
+  const handleClick = (e) => {
+    e.stopPropagation();
+    if (modoEditar) {
+      onEdit(horario);
+    } else if (modoEliminar) {
+      onToggleSelect(horario.id);
+    }
+  };
+
   return (
     <div
       ref={setNodeRef}
       style={style}
-      {...listeners}
-      {...attributes}
-      className={`group relative p-2.5 rounded-xl border cursor-grab active:cursor-grabbing transition-all select-none ${
+      {...(modoEditar || modoEliminar ? {} : listeners)}
+      {...(modoEditar || modoEliminar ? {} : attributes)}
+      onClick={handleClick}
+      className={`group relative p-2.5 rounded-xl border transition-all select-none ${
         isDragging ? 'opacity-30' : 'hover:shadow-md hover:-translate-y-0.5'
-      } ${color.bg} ${color.border}`}
+      } ${
+        modoEditar ? 'cursor-pointer hover:ring-2 hover:ring-blue-400' : 
+        modoEliminar ? 'cursor-pointer' : 
+        'cursor-grab active:cursor-grabbing'
+      } ${
+        isSelected ? 'ring-2 ring-red-400 bg-red-50 dark:bg-red-900/20' : `${color.bg} ${color.border}`
+      }`}
     >
-      <div className="pr-14">
+      <div className={modoEliminar ? 'pr-8' : ''}>
         <p className={`text-xs font-bold truncate ${color.text}`}>{horario.materia?.nombre}</p>
         <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1 mt-0.5">
           <Clock size={10} /> {horario.horaInicio} – {horario.horaFin}
         </p>
         <p className="text-xs text-gray-400 dark:text-gray-500 truncate mt-0.5">Ficha {horario.materia?.ficha?.numero}</p>
       </div>
-      <div className="absolute top-1.5 right-1.5 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-        <button
-          onPointerDown={e => e.stopPropagation()}
-          onClick={e => { e.stopPropagation(); onEdit(horario); }}
-          className="w-5 h-5 flex items-center justify-center rounded-lg text-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/30"
-          title="Editar horario"
-        >
-          <Edit2 size={11} />
-        </button>
-        <button
-          onPointerDown={e => e.stopPropagation()}
-          onClick={e => { e.stopPropagation(); onDelete(horario.id); }}
-          className="w-5 h-5 flex items-center justify-center rounded-lg text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30"
-          title="Eliminar"
-        >
-          <Trash2 size={11} />
-        </button>
-      </div>
+      
+      {modoEliminar && (
+        <div className="absolute top-2 right-2">
+          <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
+            isSelected 
+              ? 'bg-red-500 border-red-500' 
+              : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800'
+          }`}>
+            {isSelected && <Check size={12} className="text-white" />}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 // ─── Columna droppable ────────────────────────────────────────────────────────
-function DiaColumna({ dia, clases, onDelete, onEdit, activeId }) {
+function DiaColumna({ dia, clases, onEdit, activeId, modoEditar, modoEliminar, horariosSeleccionados, onToggleSelect }) {
   const { setNodeRef, isOver } = useDroppable({ id: dia });
 
   return (
@@ -147,10 +158,13 @@ function DiaColumna({ dia, clases, onDelete, onEdit, activeId }) {
             <HorarioBloque
               key={c.id}
               horario={c}
-              onDelete={onDelete}
               onEdit={onEdit}
               isDragging={activeId === c.id}
               color={COLORES[getColorForMateria(c.materiaId || c.materia?.id || c.materia?.nombre)]}
+              modoEditar={modoEditar}
+              modoEliminar={modoEliminar}
+              isSelected={horariosSeleccionados.includes(c.id)}
+              onToggleSelect={onToggleSelect}
             />
           ))}
         </div>
@@ -175,6 +189,9 @@ export default function InstructorHorario() {
   const [materiaToAdd, setMateriaToAdd] = useState(null);
   const [diaToAdd, setDiaToAdd] = useState('');
   const [formAddMateria, setFormAddMateria] = useState({ horaInicio: '', horaFin: '' });
+  const [modoEditar, setModoEditar] = useState(false);
+  const [modoEliminar, setModoEliminar] = useState(false);
+  const [horariosSeleccionados, setHorariosSeleccionados] = useState([]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
@@ -200,18 +217,8 @@ export default function InstructorHorario() {
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!confirm('¿Eliminar esta clase del horario?')) return;
-    try {
-      await fetchApi(`/horarios/${id}`, { method: 'DELETE' });
-      setHorarios(prev => prev.filter(h => h.id !== id));
-      showToast('Clase eliminada', 'success');
-    } catch (err) { 
-      showToast(err.message, 'error'); 
-    }
-  };
-
   const handleOpenEdit = (horario) => {
+    if (!modoEditar) return; // Solo editar si el modo está activo
     setFormEdit({
       id: horario.id,
       dia: horario.dia,
@@ -220,6 +227,41 @@ export default function InstructorHorario() {
     });
     setModalEdit(true);
     setError('');
+  };
+
+  const toggleSeleccionHorario = (horarioId) => {
+    if (!modoEliminar) return; // Solo seleccionar si el modo está activo
+    setHorariosSeleccionados(prev => 
+      prev.includes(horarioId) 
+        ? prev.filter(id => id !== horarioId)
+        : [...prev, horarioId]
+    );
+  };
+
+  const handleEliminarSeleccionados = async () => {
+    if (horariosSeleccionados.length === 0) {
+      showToast('Selecciona al menos una clase para eliminar', 'error');
+      return;
+    }
+
+    if (!confirm(`¿Eliminar ${horariosSeleccionados.length} clase(s) del horario?`)) return;
+
+    try {
+      await Promise.all(
+        horariosSeleccionados.map(id => fetchApi(`/horarios/${id}`, { method: 'DELETE' }))
+      );
+      setHorarios(prev => prev.filter(h => !horariosSeleccionados.includes(h.id)));
+      setHorariosSeleccionados([]);
+      setModoEliminar(false);
+      showToast(`${horariosSeleccionados.length} clase(s) eliminada(s)`, 'success');
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  };
+
+  const cancelarModoEliminar = () => {
+    setModoEliminar(false);
+    setHorariosSeleccionados([]);
   };
 
   const handleUpdateHorario = async (e) => {
@@ -341,8 +383,58 @@ export default function InstructorHorario() {
     <div className="animate-fade-in">
       <PageHeader
         title="Horario Semanal"
-        subtitle="Arrastra tus materias al calendario para crear horarios"
+        subtitle={
+          modoEditar ? "Haz click en una clase para editar sus horas" :
+          modoEliminar ? `${horariosSeleccionados.length} clase(s) seleccionada(s)` :
+          "Arrastra tus materias al calendario para crear horarios"
+        }
       />
+
+      {/* Botones de modo */}
+      {!loading && materias.length > 0 && horarios.length > 0 && (
+        <div className="flex gap-3 mb-6">
+          <button
+            onClick={() => {
+              setModoEditar(!modoEditar);
+              setModoEliminar(false);
+              setHorariosSeleccionados([]);
+            }}
+            className={`btn-secondary flex items-center gap-2 ${
+              modoEditar ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border-blue-300 dark:border-blue-700' : ''
+            }`}
+          >
+            <Edit2 size={16} />
+            {modoEditar ? 'Salir de Edición' : 'Modo Editar'}
+          </button>
+
+          <button
+            onClick={() => {
+              if (modoEliminar) {
+                cancelarModoEliminar();
+              } else {
+                setModoEliminar(true);
+                setModoEditar(false);
+              }
+            }}
+            className={`btn-secondary flex items-center gap-2 ${
+              modoEliminar ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 border-red-300 dark:border-red-700' : ''
+            }`}
+          >
+            <Trash2 size={16} />
+            {modoEliminar ? 'Cancelar' : 'Eliminar Clases'}
+          </button>
+
+          {modoEliminar && horariosSeleccionados.length > 0 && (
+            <button
+              onClick={handleEliminarSeleccionados}
+              className="btn-primary bg-red-500 hover:bg-red-600 flex items-center gap-2"
+            >
+              <Trash2 size={16} />
+              Eliminar ({horariosSeleccionados.length})
+            </button>
+          )}
+        </div>
+      )}
 
       {loading ? (
         <div className="space-y-6">
@@ -399,9 +491,12 @@ export default function InstructorHorario() {
                 key={dia} 
                 dia={dia} 
                 clases={clases} 
-                onDelete={handleDelete}
                 onEdit={handleOpenEdit}
-                activeId={activeId} 
+                activeId={activeId}
+                modoEditar={modoEditar}
+                modoEliminar={modoEliminar}
+                horariosSeleccionados={horariosSeleccionados}
+                onToggleSelect={toggleSeleccionHorario}
               />
             ))}
           </div>
