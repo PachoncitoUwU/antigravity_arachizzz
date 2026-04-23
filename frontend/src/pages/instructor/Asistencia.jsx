@@ -327,14 +327,14 @@ export default function InstructorAsistencia() {
   };
 
   const startFaceLoop = () => {
-    const OPTIONS = new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 });
+    const OPTIONS = new faceapi.TinyFaceDetectorOptions({ inputSize: 128, scoreThreshold: 0.5 }); // Más rápido
     const candidates = (activeSession?.materia?.ficha?.aprendices || [])
       .filter(a => a.faceDescriptor?.length === 128)
       .map(a => ({ ...a, descriptor: arrayToDescriptor(a.faceDescriptor) }));
 
     const tick = async () => {
       if (!videoRef.current || videoRef.current.readyState < 2 || busyRef.current) {
-        loopRef.current = setTimeout(tick, 100);
+        loopRef.current = setTimeout(tick, 50);
         return;
       }
       busyRef.current = true;
@@ -347,24 +347,9 @@ export default function InstructorAsistencia() {
 
         setDetectionCount(prev => prev + 1);
 
-        if (!detections || detections.length === 0) {
-          setLiveMatches([]);
-        } else {
+        if (detections && detections.length > 0) {
           const now = Date.now();
-          const matched = [];
           const toRegister = [];
-
-          // Dibujar en canvas
-          if (canvasRef.current && videoRef.current) {
-            const displaySize = { 
-              width: videoRef.current.offsetWidth, 
-              height: videoRef.current.offsetHeight 
-            };
-            faceapi.matchDimensions(canvasRef.current, displaySize);
-            const resizedDetections = faceapi.resizeResults(detections, displaySize);
-            const ctx = canvasRef.current.getContext('2d');
-            ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
-          }
 
           for (const det of detections) {
             let best = null, bestDist = Infinity;
@@ -375,23 +360,13 @@ export default function InstructorAsistencia() {
             if (best && bestDist < THRESHOLD) {
               const alreadyDone = registeredRef.current.has(best.id);
               const onCooldown = (now - (cooldownRef.current[best.id] || 0)) < COOLDOWN_MS;
-              matched.push({ 
-                id: best.id, 
-                name: best.fullName, 
-                isNew: !alreadyDone && !onCooldown,
-                confidence: Math.round((1 - bestDist) * 100),
-                box: det.detection.box
-              });
+              
               if (!alreadyDone && !onCooldown) {
                 cooldownRef.current[best.id] = now;
                 toRegister.push(best);
               }
             }
           }
-
-          setLiveMatches(matched);
-          if (liveTimer.current) clearTimeout(liveTimer.current);
-          liveTimer.current = setTimeout(() => setLiveMatches([]), 2000);
 
           if (toRegister.length > 0) {
             Promise.all(toRegister.map(saveFacialAttendance)).then(results => {
@@ -414,7 +389,7 @@ export default function InstructorAsistencia() {
                       }]
                     };
                   });
-                  showToast(`✅ ${a.fullName} registrado por reconocimiento facial`, 'success');
+                  showToast(`✅ ${a.fullName}`, 'success');
                 });
               }
             });
@@ -423,10 +398,10 @@ export default function InstructorAsistencia() {
       } catch (_) {}
 
       busyRef.current = false;
-      loopRef.current = setTimeout(tick, 200); // Más rápido
+      loopRef.current = setTimeout(tick, 150); // Ultra rápido
     };
 
-    loopRef.current = setTimeout(tick, 300);
+    loopRef.current = setTimeout(tick, 100);
   };
 
   const saveFacialAttendance = async (aprendiz) => {
@@ -598,7 +573,7 @@ export default function InstructorAsistencia() {
               </div>
 
               {facialScannerActive ? (
-                <div className="relative rounded-2xl overflow-hidden bg-gradient-to-br from-gray-900 to-black shadow-2xl" style={{ aspectRatio: '16/9', maxHeight: 450 }}>
+                <div className="relative rounded-2xl overflow-hidden bg-black shadow-2xl" style={{ aspectRatio: '16/9', maxHeight: 450 }}>
                   <video 
                     ref={videoRef} 
                     muted 
@@ -606,81 +581,16 @@ export default function InstructorAsistencia() {
                     className="w-full h-full object-cover"
                     style={{ transform: 'scaleX(-1)' }} 
                   />
-                  <canvas 
-                    ref={canvasRef}
-                    className="absolute inset-0 w-full h-full"
-                    style={{ transform: 'scaleX(-1)' }}
-                  />
 
-                  {/* Overlay de detección mejorado */}
-                  {liveMatches.length > 0 && liveMatches.map((m, i) => (
-                    <div 
-                      key={m.id} 
-                      className="absolute animate-fade-in"
-                      style={{
-                        left: '50%',
-                        top: '50%',
-                        transform: 'translate(-50%, -50%)',
-                      }}>
-                      <div className={`relative p-6 rounded-2xl backdrop-blur-md ${
-                        m.isNew 
-                          ? 'bg-gradient-to-br from-green-500/90 to-emerald-600/90 shadow-lg shadow-green-500/50' 
-                          : 'bg-gradient-to-br from-blue-500/90 to-indigo-600/90 shadow-lg shadow-blue-500/50'
-                      } animate-scale-in`}>
-                        <div className="flex items-center gap-4">
-                          <div className={`w-16 h-16 rounded-full flex items-center justify-center text-white font-bold text-2xl ${
-                            m.isNew ? 'bg-white/20' : 'bg-white/20'
-                          } animate-pulse`}>
-                            {m.name.charAt(0).toUpperCase()}
-                          </div>
-                          <div>
-                            <p className="text-white font-bold text-xl mb-1">{m.name}</p>
-                            <div className="flex items-center gap-2">
-                              <div className="flex items-center gap-1">
-                                <Activity size={14} className="text-white/80" />
-                                <span className="text-white/90 text-sm font-medium">{m.confidence}% confianza</span>
-                              </div>
-                              {m.isNew && (
-                                <span className="px-2 py-0.5 rounded-full bg-white/30 text-white text-xs font-bold flex items-center gap-1">
-                                  <Zap size={10} /> NUEVO
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                          <CheckCircle size={32} className="text-white animate-bounce" />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                  {/* Solo indicador de estado - sin overlays pesados */}
+                  <div className="absolute top-4 right-4 flex items-center gap-2 bg-red-600/90 backdrop-blur-sm px-3 py-1.5 rounded-full">
+                    <div className="w-2 h-2 rounded-full bg-white animate-pulse" />
+                    <span className="text-white text-xs font-semibold">ACTIVO</span>
+                  </div>
 
-                  {/* Guías de esquinas animadas */}
-                  {faceReady && liveMatches.length === 0 && (
-                    <>
-                      {[
-                        { pos: 'top-6 left-6', corners: 'border-t-4 border-l-4', round: 'rounded-tl-2xl' },
-                        { pos: 'top-6 right-6', corners: 'border-t-4 border-r-4', round: 'rounded-tr-2xl' },
-                        { pos: 'bottom-6 left-6', corners: 'border-b-4 border-l-4', round: 'rounded-bl-2xl' },
-                        { pos: 'bottom-6 right-6', corners: 'border-b-4 border-r-4', round: 'rounded-br-2xl' },
-                      ].map((guide, i) => (
-                        <div 
-                          key={i}
-                          className={`absolute ${guide.pos} w-12 h-12 ${guide.corners} ${guide.round} border-cyan-400 animate-pulse`}
-                          style={{ animationDelay: `${i * 150}ms` }}
-                        />
-                      ))}
-                      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-6">
-                        <div className="flex items-center justify-center gap-3 text-white">
-                          <Eye size={20} className="animate-pulse" />
-                          <p className="text-sm font-medium">Buscando rostros... {detectionCount} detecciones</p>
-                        </div>
-                      </div>
-                    </>
-                  )}
-
-                  {/* Indicador de estado */}
-                  <div className="absolute top-4 right-4 flex items-center gap-2 bg-black/60 backdrop-blur-sm px-4 py-2 rounded-full">
-                    <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                    <span className="text-white text-xs font-semibold">EN VIVO</span>
+                  {/* Contador simple */}
+                  <div className="absolute bottom-4 left-4 bg-black/60 backdrop-blur-sm px-3 py-1.5 rounded-lg">
+                    <span className="text-white text-xs font-mono">{detectionCount} detecciones</span>
                   </div>
                 </div>
               ) : (
@@ -918,54 +828,186 @@ export default function InstructorAsistencia() {
         </div>
       )}
 
-      {/* Modal Detalle de Sesión */}
+      {/* Modal Detalle de Sesión con GRÁFICAS */}
       {selectedSessionDetail && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in" onClick={() => setSelectedSessionDetail(null)}>
-          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-4xl w-full p-6 animate-scale-in max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in overflow-y-auto" onClick={() => setSelectedSessionDetail(null)}>
+          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-6xl w-full p-6 animate-scale-in my-8" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-6">
               <div>
-                <h2 className="font-bold text-gray-900 dark:text-white text-xl">Detalle de Sesión</h2>
-                <p className="text-sm text-gray-400">{selectedSessionDetail.fecha} • {selectedSessionDetail.materia?.nombre}</p>
+                <h2 className="font-bold text-gray-900 dark:text-white text-2xl">Análisis Detallado de Sesión</h2>
+                <p className="text-sm text-gray-400">{selectedSessionDetail.fecha} • {selectedSessionDetail.materia?.nombre} • Ficha {selectedSessionDetail.materia?.ficha?.numero}</p>
               </div>
               <button onClick={() => setSelectedSessionDetail(null)} className="btn-icon hover:bg-gray-100 dark:hover:bg-gray-800">
                 <X size={20} />
               </button>
             </div>
 
-            {/* Estadísticas */}
-            <div className="grid grid-cols-3 gap-4 mb-6">
+            {/* Estadísticas principales */}
+            <div className="grid grid-cols-4 gap-4 mb-6">
               {[
-                { label: 'Total', value: selectedSessionDetail.registros?.length || 0, color: 'gray', icon: Users },
-                { label: 'Presentes', value: selectedSessionDetail.registros?.filter(r => r.presente).length || 0, color: 'green', icon: CheckCircle },
-                { label: 'Ausentes', value: selectedSessionDetail.registros?.filter(r => !r.presente).length || 0, color: 'red', icon: X },
+                { 
+                  label: 'Total Estudiantes', 
+                  value: selectedSessionDetail.registros?.length || 0, 
+                  color: 'blue', 
+                  icon: Users,
+                  bg: 'from-blue-500 to-blue-600'
+                },
+                { 
+                  label: 'Presentes', 
+                  value: selectedSessionDetail.registros?.filter(r => r.presente).length || 0, 
+                  color: 'green', 
+                  icon: CheckCircle,
+                  bg: 'from-green-500 to-emerald-600'
+                },
+                { 
+                  label: 'Ausentes', 
+                  value: selectedSessionDetail.registros?.filter(r => !r.presente).length || 0, 
+                  color: 'red', 
+                  icon: X,
+                  bg: 'from-red-500 to-rose-600'
+                },
+                { 
+                  label: 'Asistencia', 
+                  value: `${Math.round(((selectedSessionDetail.registros?.filter(r => r.presente).length || 0) / (selectedSessionDetail.registros?.length || 1)) * 100)}%`, 
+                  color: 'purple', 
+                  icon: TrendingUp,
+                  bg: 'from-purple-500 to-pink-600'
+                },
               ].map(stat => (
-                <div key={stat.label} className={`bg-${stat.color}-50 dark:bg-${stat.color}-900/20 rounded-xl p-4 text-center`}>
-                  <stat.icon size={24} className={`mx-auto mb-2 text-${stat.color}-600`} />
-                  <p className={`text-2xl font-bold text-${stat.color}-600`}>{stat.value}</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{stat.label}</p>
+                <div key={stat.label} className={`bg-gradient-to-br ${stat.bg} rounded-xl p-4 text-white shadow-lg transform hover:scale-105 transition-all`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <stat.icon size={24} className="opacity-80" />
+                    <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
+                      <stat.icon size={20} />
+                    </div>
+                  </div>
+                  <p className="text-3xl font-bold mb-1">{stat.value}</p>
+                  <p className="text-xs opacity-90">{stat.label}</p>
                 </div>
               ))}
             </div>
 
-            {/* Listas */}
-            <div className="grid grid-cols-2 gap-4">
+            {/* Gráficas */}
+            <div className="grid grid-cols-2 gap-6 mb-6">
+              {/* Gráfica de Torta */}
+              <div className="card dark:bg-gray-800">
+                <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Distribución de Asistencia</h3>
+                <ResponsiveContainer width="100%" height={250}>
+                  <PieChart>
+                    <Pie 
+                      data={[
+                        { name: 'Presentes', value: selectedSessionDetail.registros?.filter(r => r.presente).length || 0, color: '#34A853' },
+                        { name: 'Ausentes', value: selectedSessionDetail.registros?.filter(r => !r.presente).length || 0, color: '#EA4335' },
+                      ]}
+                      cx="50%" 
+                      cy="50%" 
+                      innerRadius={60} 
+                      outerRadius={90}
+                      paddingAngle={5} 
+                      dataKey="value"
+                      label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                    >
+                      {[
+                        { name: 'Presentes', value: selectedSessionDetail.registros?.filter(r => r.presente).length || 0, color: '#34A853' },
+                        { name: 'Ausentes', value: selectedSessionDetail.registros?.filter(r => !r.presente).length || 0, color: '#EA4335' },
+                      ].map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* Gráfica de Métodos de Registro */}
+              <div className="card dark:bg-gray-800">
+                <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Métodos de Registro</h3>
+                <ResponsiveContainer width="100%" height={250}>
+                  <BarChart 
+                    data={(() => {
+                      const metodos = {};
+                      selectedSessionDetail.registros?.filter(r => r.presente).forEach(r => {
+                        const metodo = r.metodo || 'manual';
+                        metodos[metodo] = (metodos[metodo] || 0) + 1;
+                      });
+                      return Object.entries(metodos).map(([name, value]) => ({ 
+                        name: name.charAt(0).toUpperCase() + name.slice(1), 
+                        value,
+                        fill: name === 'facial' ? '#4285F4' : name === 'qr' ? '#FBBC05' : name === 'nfc' ? '#34A853' : '#9333EA'
+                      }));
+                    })()}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                    <YAxis tick={{ fontSize: 12 }} />
+                    <Tooltip />
+                    <Bar dataKey="value" radius={[8, 8, 0, 0]}>
+                      {(() => {
+                        const metodos = {};
+                        selectedSessionDetail.registros?.filter(r => r.presente).forEach(r => {
+                          const metodo = r.metodo || 'manual';
+                          metodos[metodo] = (metodos[metodo] || 0) + 1;
+                        });
+                        return Object.entries(metodos).map(([name, value], index) => (
+                          <Cell key={`cell-${index}`} fill={name === 'facial' ? '#4285F4' : name === 'qr' ? '#FBBC05' : name === 'nfc' ? '#34A853' : '#9333EA'} />
+                        ));
+                      })()}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* Gráfica de Línea de Tiempo */}
+            <div className="card dark:bg-gray-800 mb-6">
+              <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Línea de Tiempo de Registros</h3>
+              <ResponsiveContainer width="100%" height={200}>
+                <LineChart 
+                  data={(() => {
+                    const registrosPorMinuto = {};
+                    selectedSessionDetail.registros?.filter(r => r.presente).forEach(r => {
+                      const time = new Date(r.timestamp).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
+                      registrosPorMinuto[time] = (registrosPorMinuto[time] || 0) + 1;
+                    });
+                    return Object.entries(registrosPorMinuto).map(([time, count]) => ({ time, count }));
+                  })()}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis dataKey="time" tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 11 }} />
+                  <Tooltip />
+                  <Line type="monotone" dataKey="count" stroke="#4285F4" strokeWidth={3} dot={{ fill: '#4285F4', r: 5 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Listas de estudiantes */}
+            <div className="grid grid-cols-2 gap-6">
               <div>
                 <h3 className="font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
-                  <CheckCircle size={16} className="text-[#34A853]" />
+                  <div className="w-8 h-8 rounded-lg bg-green-100 dark:bg-green-900/20 flex items-center justify-center">
+                    <CheckCircle size={16} className="text-[#34A853]" />
+                  </div>
                   Presentes ({selectedSessionDetail.registros?.filter(r => r.presente).length || 0})
                 </h3>
                 <div className="space-y-2 max-h-96 overflow-y-auto custom-scrollbar">
                   {selectedSessionDetail.registros?.filter(r => r.presente).map((reg, i) => (
-                    <div key={i} className="bg-green-50 dark:bg-green-900/20 rounded-lg p-3 flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-[#34A853] flex items-center justify-center text-white font-bold text-xs">
+                    <div key={i} className="bg-green-50 dark:bg-green-900/20 rounded-lg p-3 flex items-center gap-3 hover:shadow-md transition-all">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center text-white font-bold text-sm shadow-md">
                         {reg.aprendiz?.fullName?.charAt(0) || 'A'}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">
+                        <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 truncate">
                           {reg.aprendiz?.fullName || 'Aprendiz'}
                         </p>
-                        <p className="text-xs text-gray-500">{reg.metodo || 'manual'}</p>
+                        <div className="flex items-center gap-2 text-xs text-gray-500">
+                          <span className="px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-800 text-green-700 dark:text-green-300 font-medium">
+                            {reg.metodo || 'manual'}
+                          </span>
+                          <span>{new Date(reg.timestamp).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}</span>
+                        </div>
                       </div>
+                      <CheckCircle size={18} className="text-[#34A853]" />
                     </div>
                   ))}
                 </div>
@@ -973,24 +1015,38 @@ export default function InstructorAsistencia() {
 
               <div>
                 <h3 className="font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
-                  <X size={16} className="text-[#EA4335]" />
+                  <div className="w-8 h-8 rounded-lg bg-red-100 dark:bg-red-900/20 flex items-center justify-center">
+                    <X size={16} className="text-[#EA4335]" />
+                  </div>
                   Ausentes ({selectedSessionDetail.registros?.filter(r => !r.presente).length || 0})
                 </h3>
                 <div className="space-y-2 max-h-96 overflow-y-auto custom-scrollbar">
                   {selectedSessionDetail.registros?.filter(r => !r.presente).map((reg, i) => (
-                    <div key={i} className="bg-red-50 dark:bg-red-900/20 rounded-lg p-3 flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-[#EA4335] flex items-center justify-center text-white font-bold text-xs">
+                    <div key={i} className="bg-red-50 dark:bg-red-900/20 rounded-lg p-3 flex items-center gap-3 hover:shadow-md transition-all">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-red-500 to-rose-600 flex items-center justify-center text-white font-bold text-sm shadow-md">
                         {reg.aprendiz?.fullName?.charAt(0) || 'A'}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">
+                        <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 truncate">
                           {reg.aprendiz?.fullName || 'Aprendiz'}
                         </p>
+                        <p className="text-xs text-gray-500">Sin registro</p>
                       </div>
+                      <X size={18} className="text-[#EA4335]" />
                     </div>
                   ))}
                 </div>
               </div>
+            </div>
+
+            {/* Botón de exportar */}
+            <div className="mt-6 flex justify-end">
+              <button 
+                onClick={() => exportSession(selectedSessionDetail.id, selectedSessionDetail.fecha)}
+                className="btn-primary flex items-center gap-2">
+                <Download size={16} />
+                Exportar Sesión Completa
+              </button>
             </div>
           </div>
         </div>
