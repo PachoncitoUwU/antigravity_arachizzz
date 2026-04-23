@@ -5,6 +5,7 @@ import fetchApi from '../../services/api';
 import { useToast } from '../../context/ToastContext';
 import Modal from '../../components/Modal';
 import EnrollModal from '../../components/EnrollModal';
+import AprendizPerfilModal from '../../components/AprendizPerfilModal';
 import {
   ArrowLeft, Users, BookOpen, Calendar, Copy, RefreshCw, Check, 
   Download, Loader, Edit2, UserMinus, Fingerprint, Link, Clock, Plus
@@ -40,6 +41,7 @@ export default function FichaDetalle() {
   const [errorEdit, setErrorEdit] = useState('');
   const [modalEnroll, setModalEnroll] = useState(false);
   const [selectedAprendiz, setSelectedAprendiz] = useState(null);
+  const [modalPerfil, setModalPerfil] = useState(false);
 
   useEffect(() => {
     loadFicha();
@@ -186,6 +188,20 @@ export default function FichaDetalle() {
   const handleCloseEnroll = () => {
     setModalEnroll(false);
     setSelectedAprendiz(null);
+    loadFicha(); // Recargar para actualizar los datos del aprendiz
+  };
+
+  const handleOpenPerfil = (aprendiz) => {
+    setSelectedAprendiz(aprendiz);
+    setModalPerfil(true);
+  };
+
+  const handleClosePerfil = () => {
+    setModalPerfil(false);
+    setSelectedAprendiz(null);
+  };
+
+  const handleBiometricUpdate = () => {
     loadFicha(); // Recargar para actualizar los datos del aprendiz
   };
 
@@ -343,48 +359,28 @@ export default function FichaDetalle() {
                   return (
                     <div 
                       key={aprendiz.id} 
-                      className="flex items-center justify-between p-3 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors border border-gray-100 dark:border-gray-700"
+                      className="flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors border border-gray-100 dark:border-gray-700 cursor-pointer"
+                      onClick={() => handleOpenPerfil(aprendiz)}
                     >
-                      <div className="flex items-center gap-3">
-                        {avatarSrc ? (
-                          <img 
-                            src={avatarSrc} 
-                            className="w-10 h-10 rounded-xl object-cover" 
-                            alt={aprendiz.fullName} 
-                          />
-                        ) : (
-                          <div 
-                            className="w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold text-white"
-                            style={{ backgroundColor: COLOR }}
-                          >
-                            {aprendiz.fullName.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()}
-                          </div>
-                        )}
-                        <div>
-                          <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{aprendiz.fullName}</p>
-                          <p className="text-xs text-gray-400 font-mono">{aprendiz.document}</p>
-                          <p className="text-xs text-gray-400">{aprendiz.email}</p>
-                        </div>
-                      </div>
-                      
-                      {isAdmin && (
-                        <div className="flex items-center gap-1">
-                          <button 
-                            onClick={() => handleOpenEnroll(aprendiz)}
-                            className="btn-icon text-[#4285F4] hover:bg-blue-50 dark:hover:bg-blue-900/20 w-8 h-8" 
-                            title="Registrar huella/NFC"
-                          >
-                            <Fingerprint size={16} />
-                          </button>
-                          <button 
-                            onClick={() => handleRemoveAprendiz(aprendiz.id)}
-                            className="btn-icon text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 w-8 h-8"
-                            title="Eliminar"
-                          >
-                            <UserMinus size={16} />
-                          </button>
+                      {avatarSrc ? (
+                        <img 
+                          src={avatarSrc} 
+                          className="w-10 h-10 rounded-xl object-cover" 
+                          alt={aprendiz.fullName} 
+                        />
+                      ) : (
+                        <div 
+                          className="w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold text-white"
+                          style={{ backgroundColor: COLOR }}
+                        >
+                          {aprendiz.fullName.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()}
                         </div>
                       )}
+                      <div>
+                        <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{aprendiz.fullName}</p>
+                        <p className="text-xs text-gray-400 font-mono">{aprendiz.document}</p>
+                        <p className="text-xs text-gray-400">{aprendiz.email}</p>
+                      </div>
                     </div>
                   );
                 })}
@@ -773,6 +769,20 @@ export default function FichaDetalle() {
           open={modalEnroll} 
           onClose={handleCloseEnroll} 
           aprendiz={selectedAprendiz} 
+        />
+      )}
+
+      {/* Modal de perfil del aprendiz */}
+      {selectedAprendiz && (
+        <AprendizPerfilModal 
+          open={modalPerfil} 
+          onClose={handleClosePerfil} 
+          aprendiz={selectedAprendiz}
+          isAdmin={isAdmin}
+          fichaId={id}
+          materias={ficha.materias || []}
+          onRemoveAprendiz={handleRemoveAprendiz}
+          onBiometricUpdate={handleBiometricUpdate}
         />
       )}
     </div>

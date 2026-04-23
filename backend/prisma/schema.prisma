@@ -10,32 +10,33 @@ datasource db {
 }
 
 model User {
-  id             String               @id @default(cuid())
-  userType       String
-  fullName       String
-  document       String               @unique
-  email          String               @unique
-  password       String
-  avatarUrl      String?
-  nfcUid         String?              @unique
-  huellas        Int[]                @default([])
-  createdAt      DateTime             @default(now())
-  faceDescriptor Float[]              @default([])
-  asistencias    Asistencia[]         @relation("InstructorAsistencia")
-  breakoutScore  BreakoutScore?
-  excusas        Excusa[]
-  fichasAdmin    Ficha[]              @relation("InstructorAdmin")
-  fichasInst     FichaInstructor[]
-  flappyScore    FlappyScore?
-  materias       Materia[]            @relation("InstructorMaterias")
-  memoryScore    MemoryScore?
-  reactionScore  ReactionScore?
-  registros      RegistroAsistencia[]
-  snakeScore     SnakeScore?
-  towerScore     TowerScore?
-  userSkins      UserSkin[]
-  wordleScore    WordleScore?
-  fichasApr      Ficha[]              @relation("Aprendices")
+  id              String               @id @default(cuid())
+  userType        String
+  fullName        String
+  document        String               @unique
+  email           String               @unique
+  password        String
+  avatarUrl       String?
+  nfcUid          String?              @unique
+  huellas         Int[]                @default([])
+  createdAt       DateTime             @default(now())
+  faceDescriptor  Float[]              @default([])
+  asistencias     Asistencia[]         @relation("InstructorAsistencia")
+  breakoutScore   BreakoutScore?
+  excusas         Excusa[]
+  fichasAdmin     Ficha[]              @relation("InstructorAdmin")
+  fichasInst      FichaInstructor[]
+  flappyScore     FlappyScore?
+  materias        Materia[]            @relation("InstructorMaterias")
+  memoryScore     MemoryScore?
+  reactionScore   ReactionScore?
+  registros       RegistroAsistencia[]
+  snakeScore      SnakeScore?
+  towerScore      TowerScore?
+  userSkins       UserSkin[]
+  wordleScore     WordleScore?
+  fichasApr       Ficha[]              @relation("Aprendices")
+  materiasEvitadas MateriaEvitada[]
 }
 
 model Ficha {
@@ -69,15 +70,16 @@ model FichaInstructor {
 }
 
 model Materia {
-  id           String       @id @default(cuid())
-  nombre       String
-  tipo         String
-  fichaId      String
-  instructorId String
-  asistencias  Asistencia[]
-  horarios     Horario[]
-  ficha        Ficha        @relation(fields: [fichaId], references: [id], onDelete: Cascade)
-  instructor   User         @relation("InstructorMaterias", fields: [instructorId], references: [id])
+  id               String             @id @default(cuid())
+  nombre           String
+  tipo             String
+  fichaId          String
+  instructorId     String
+  asistencias      Asistencia[]
+  horarios         Horario[]
+  ficha            Ficha              @relation(fields: [fichaId], references: [id], onDelete: Cascade)
+  instructor       User               @relation("InstructorMaterias", fields: [instructorId], references: [id])
+  materiasEvitadas MateriaEvitada[]
 }
 
 model Horario {
@@ -128,6 +130,17 @@ model Excusa {
   respondedAt DateTime?
   aprendizId  String
   aprendiz    User      @relation(fields: [aprendizId], references: [id], onDelete: Cascade)
+}
+
+model MateriaEvitada {
+  id         String   @id @default(cuid())
+  aprendizId String
+  materiaId  String
+  createdAt  DateTime @default(now())
+  aprendiz   User     @relation(fields: [aprendizId], references: [id], onDelete: Cascade)
+  materia    Materia  @relation(fields: [materiaId], references: [id], onDelete: Cascade)
+
+  @@unique([aprendizId, materiaId])
 }
 
 model SnakeScore {

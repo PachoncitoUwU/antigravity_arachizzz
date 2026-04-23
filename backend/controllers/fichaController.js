@@ -151,7 +151,22 @@ const getFichaById = async (req, res) => {
       where: { id },
       include: {
         instructores: { include: { instructor: { select: { id: true, fullName: true, email: true, avatarUrl: true } } } },
-        aprendices: { select: { id: true, fullName: true, document: true, email: true, avatarUrl: true, nfcUid: true, huellas: true, faceDescriptor: true } },
+        aprendices: { 
+          select: { 
+            id: true, 
+            fullName: true, 
+            document: true, 
+            email: true, 
+            avatarUrl: true, 
+            nfcUid: true, 
+            huellas: true, 
+            faceDescriptor: true,
+            materiasEvitadas: {
+              where: { materia: { fichaId: id } },
+              include: { materia: true }
+            }
+          } 
+        },
         materias: { include: { instructor: { select: { id: true, fullName: true } } } },
         horarios: { include: { materia: { select: { nombre: true } } } }
       }
