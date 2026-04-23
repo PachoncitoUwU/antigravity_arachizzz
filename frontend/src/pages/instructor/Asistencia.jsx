@@ -471,25 +471,28 @@ export default function InstructorAsistencia() {
   };
 
   // ─── Registro Manual ───────────────────────────────────────────────────────
-  const [selectedAprendiz, setSelectedAprendiz] = useState('');
-  
-  const registerManual = async () => {
-    if (!selectedAprendiz) return;
+  const registerManualStudent = async (aprendizId) => {
+    // Prevenir registros duplicados
+    if (activeSession.registros?.some(r => r.aprendizId === aprendizId)) {
+      showToast('Este estudiante ya está registrado', 'error');
+      return;
+    }
+
     try {
       await fetchApi('/asistencias/manual-register', {
         method: 'POST',
         body: JSON.stringify({ 
           asistenciaId: activeSession.id, 
-          aprendizId: selectedAprendiz 
+          aprendizId: aprendizId 
         })
       });
       
-      const aprendiz = activeSession.materia?.ficha?.aprendices?.find(a => a.id === selectedAprendiz);
+      const aprendiz = activeSession.materia?.ficha?.aprendices?.find(a => a.id === aprendizId);
       setActiveSession(prev => ({
         ...prev,
         registros: [...(prev.registros || []), {
           id: 'manual-' + Date.now(),
-          aprendizId: selectedAprendiz,
+          aprendizId: aprendizId,
           aprendiz: { fullName: aprendiz?.fullName },
           presente: true,
           metodo: 'manual',
@@ -497,9 +500,7 @@ export default function InstructorAsistencia() {
         }]
       }));
       
-      showToast(`✅ ${aprendiz?.fullName} registrado manualmente`, 'success');
-      setManualRegisterOpen(false);
-      setSelectedAprendiz('');
+      showToast(`✅ ${aprendiz?.fullName} registrado`, 'success');
     } catch (err) {
       showToast(err.message, 'error');
     }
@@ -585,7 +586,46 @@ export default function InstructorAsistencia() {
 
       {activeSession && (
         <>
-          {/* Estadísticas principales - Rediseñadas */}
+          {/* Lector de Huella y NFC */}
+          <div className="card dark:bg-gray-900 dark:border-gray-800 transition-all duration-300">
+            <div className="flex items-center gap-2 mb-3">
+              <Fingerprint size={18} className="text-[#4285F4]" />
+              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Lector de Huella y NFC</h3>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-3 items-end">
+              <div className="flex-1">
+                <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">Puerto COM</label>
+                <select 
+                  className="w-full px-4 py-2.5 rounded-xl border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#4285F4] focus:border-[#4285F4] transition-all"
+                  value={comPort}
+                  onChange={e => setComPort(e.target.value)}>
+                  <option value="COM8">COM8 - selección</option>
+                  <option value="COM3">COM3</option>
+                  <option value="COM4">COM4</option>
+                  <option value="COM5">COM5</option>
+                  <option value="COM6">COM6</option>
+                  <option value="COM7">COM7</option>
+                </select>
+              </div>
+              <div>
+                <button 
+                  onClick={() => setHardwareConnected(!hardwareConnected)}
+                  className={`px-5 py-2.5 rounded-xl text-white text-sm font-semibold transition-all shadow-md flex items-center gap-2 transform hover:scale-105 ${
+                    hardwareConnected 
+                      ? 'bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700' 
+                      : 'bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700'
+                  }`}>
+                  {hardwareConnected ? <><X size={14}/> Desconectar</> : <><RefreshCw size={14}/> Vincular Lector</>}
+                </button>
+              </div>
+            </div>
+            {hardwareConnected && (
+              <div className="mt-3 flex items-center gap-2 text-xs text-[#34A853] bg-green-50 dark:bg-green-900/20 px-3 py-2 rounded-lg animate-fade-in">
+                <Wifi size={12} />
+                <span>Lector conectado en {comPort}</span>
+              </div>
+            )}
+          </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 border-l-4 border-l-gray-400 shadow-sm hover:shadow-md transition-all">
               <div className="flex items-center justify-between mb-3">
@@ -872,59 +912,78 @@ export default function InstructorAsistencia() {
         </div>
       )}
 
-      {/* Modal Registro Manual - Mejorado */}
+      {/* Modal Registro Manual - Lista Clickeable */}
       {manualRegisterOpen && activeSession && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
-          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-lg w-full p-6 animate-scale-in">
-            <div className="flex items-center justify-between mb-6">
+          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden animate-scale-in">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-lg">
                   <UserPlus size={24} className="text-white" />
                 </div>
                 <div>
                   <h2 className="font-bold text-gray-900 dark:text-white">Registro Manual de Asistencia</h2>
-                  <p className="text-xs text-gray-400">Selecciona un estudiante para marcar presente</p>
+                  <p className="text-xs text-gray-400">Haz clic en un estudiante para registrar su asistencia</p>
                 </div>
               </div>
-              <button onClick={() => { setManualRegisterOpen(false); setSelectedAprendiz(''); }} className="btn-icon hover:bg-gray-100 dark:hover:bg-gray-800">
+              <button onClick={() => setManualRegisterOpen(false)} className="btn-icon hover:bg-gray-100 dark:hover:bg-gray-800">
                 <X size={18} />
               </button>
             </div>
 
-            <div className="mb-6">
-              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                Estudiante
-              </label>
-              <select 
-                className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm font-medium focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all"
-                value={selectedAprendiz}
-                onChange={e => setSelectedAprendiz(e.target.value)}>
-                <option value="">-- Selecciona un estudiante --</option>
-                {activeSession.materia?.ficha?.aprendices
+            <div className="p-6">
+              {(() => {
+                const pendingStudents = activeSession.materia?.ficha?.aprendices
                   ?.filter(a => !activeSession.registros?.some(r => r.aprendizId === a.id))
-                  .sort((a, b) => a.fullName.localeCompare(b.fullName))
-                  .map(a => (
-                    <option key={a.id} value={a.id}>{a.fullName}</option>
-                  ))}
-              </select>
-              {activeSession.materia?.ficha?.aprendices?.filter(a => !activeSession.registros?.some(r => r.aprendizId === a.id)).length === 0 && (
-                <p className="text-xs text-gray-500 mt-2">Todos los estudiantes ya están registrados</p>
-              )}
-            </div>
+                  .sort((a, b) => a.fullName.localeCompare(b.fullName)) || [];
 
-            <div className="flex gap-3">
-              <button 
-                onClick={() => { setManualRegisterOpen(false); setSelectedAprendiz(''); }}
-                className="flex-1 px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 text-sm font-semibold hover:bg-gray-50 dark:hover:bg-gray-800 transition-all">
-                Cancelar
-              </button>
-              <button 
-                onClick={registerManual}
-                disabled={!selectedAprendiz}
-                className="flex-1 px-4 py-3 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white text-sm font-bold shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
-                <CheckCircle size={18} />
-                Registrar Asistencia
-              </button>
+                if (pendingStudents.length === 0) {
+                  return (
+                    <div className="text-center py-12">
+                      <CheckCircle size={48} className="mx-auto mb-4 text-[#34A853] opacity-50" />
+                      <p className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">¡Todos registrados!</p>
+                      <p className="text-sm text-gray-500">Todos los estudiantes ya tienen su asistencia marcada</p>
+                    </div>
+                  );
+                }
+
+                return (
+                  <>
+                    <div className="mb-4 flex items-center justify-between">
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        {pendingStudents.length} estudiante{pendingStudents.length !== 1 ? 's' : ''} pendiente{pendingStudents.length !== 1 ? 's' : ''}
+                      </p>
+                      <div className="flex items-center gap-2 text-xs text-gray-500">
+                        <Clock size={12} />
+                        <span>Click para registrar</span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-96 overflow-y-auto custom-scrollbar">
+                      {pendingStudents.map((student, i) => (
+                        <button
+                          key={student.id}
+                          onClick={() => registerManualStudent(student.id)}
+                          className="flex items-center gap-3 p-4 bg-gray-50 dark:bg-gray-800 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-xl border-2 border-transparent hover:border-purple-200 dark:hover:border-purple-700 transition-all transform hover:scale-105 text-left"
+                          style={{ animation: `slideIn 0.3s ease-out ${i * 50}ms` }}>
+                          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-400 to-pink-500 flex items-center justify-center text-white font-bold text-lg shadow-md">
+                            {student.fullName.charAt(0).toUpperCase()}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 truncate">
+                              {student.fullName}
+                            </p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                              {student.email || 'Sin email'}
+                            </p>
+                          </div>
+                          <UserPlus size={18} className="text-purple-500 opacity-60" />
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           </div>
         </div>
