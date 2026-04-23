@@ -69,6 +69,7 @@ export default function InstructorAsistencia() {
   const cooldownRef = useRef({});
   const [faceReady, setFaceReady] = useState(false);
   const [liveMatches, setLiveMatches] = useState([]);
+  const [lastDetectedName, setLastDetectedName] = useState('');
   const [detectionCount, setDetectionCount] = useState(0);
   const liveTimer = useRef(null);
 
@@ -327,7 +328,7 @@ export default function InstructorAsistencia() {
   };
 
   const startFaceLoop = () => {
-    const OPTIONS = new faceapi.TinyFaceDetectorOptions({ inputSize: 128, scoreThreshold: 0.5 }); // Más rápido
+    const OPTIONS = new faceapi.TinyFaceDetectorOptions({ inputSize: 128, scoreThreshold: 0.5 });
     const candidates = (activeSession?.materia?.ficha?.aprendices || [])
       .filter(a => a.faceDescriptor?.length === 128)
       .map(a => ({ ...a, descriptor: arrayToDescriptor(a.faceDescriptor) }));
@@ -350,6 +351,7 @@ export default function InstructorAsistencia() {
         if (detections && detections.length > 0) {
           const now = Date.now();
           const toRegister = [];
+          let detectedName = '';
 
           for (const det of detections) {
             let best = null, bestDist = Infinity;
@@ -358,6 +360,9 @@ export default function InstructorAsistencia() {
               if (d < bestDist) { bestDist = d; best = c; }
             }
             if (best && bestDist < THRESHOLD) {
+              detectedName = best.fullName;
+              setLastDetectedName(detectedName);
+              
               const alreadyDone = registeredRef.current.has(best.id);
               const onCooldown = (now - (cooldownRef.current[best.id] || 0)) < COOLDOWN_MS;
               
@@ -394,11 +399,13 @@ export default function InstructorAsistencia() {
               }
             });
           }
+        } else {
+          setLastDetectedName('');
         }
       } catch (_) {}
 
       busyRef.current = false;
-      loopRef.current = setTimeout(tick, 150); // Ultra rápido
+      loopRef.current = setTimeout(tick, 150);
     };
 
     loopRef.current = setTimeout(tick, 100);
@@ -439,8 +446,11 @@ export default function InstructorAsistencia() {
           return prev - 1;
         });
       }, 1000);
+      
+      showToast('Código QR generado', 'success');
     } catch (error) {
       showToast(error.message, 'error');
+      setQrActive(false);
     }
   };
 
@@ -451,6 +461,7 @@ export default function InstructorAsistencia() {
     } else {
       setQrActive(false);
       if (qrTimerRef.current) clearInterval(qrTimerRef.current);
+      setQrCode(null);
     }
   };
 
@@ -498,10 +509,10 @@ export default function InstructorAsistencia() {
         <div className="flex flex-col sm:flex-row gap-4 items-end">
           <div className="flex-1">
             <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
-              Materia
+              Selecciona una Materia
             </label>
             <select 
-              className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#4285F4] transition-all"
+              className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#34A853] focus:border-[#34A853] transition-all"
               value={selectedMateria}
               onChange={e => setSelectedMateria(e.target.value)}
               disabled={!!activeSession || materias.length === 0}>
@@ -516,40 +527,92 @@ export default function InstructorAsistencia() {
               <button 
                 onClick={startSession} 
                 disabled={!selectedMateria || starting} 
-                className="px-6 py-3 rounded-xl bg-[#34A853] text-white text-sm font-semibold hover:bg-green-600 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transform hover:scale-105">
-                <Play size={16}/> {starting ? 'Iniciando...' : 'Iniciar Sesión'}
+                className="px-8 py-3 rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white text-sm font-bold shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transform hover:scale-105">
+                <Play size={18}/> {starting ? 'Iniciando...' : 'Iniciar Sesión'}
               </button>
             ) : (
               <button 
                 onClick={endSession} 
-                className="px-6 py-3 rounded-xl bg-[#EA4335] text-white text-sm font-semibold hover:bg-red-600 transition-all shadow-sm flex items-center gap-2 transform hover:scale-105">
-                <Square size={16}/> Finalizar Sesión
+                className="px-8 py-3 rounded-xl bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white text-sm font-bold shadow-lg hover:shadow-xl transition-all flex items-center gap-2 transform hover:scale-105">
+                <Square size={18}/> Finalizar Sesión
               </button>
             )}
           </div>
         </div>
       </div>
 
+      {/* Vista cuando NO hay sesión activa */}
+      {!activeSession && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="card dark:bg-gray-900 dark:border-gray-800 text-center p-8">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center mx-auto mb-4 shadow-lg">
+              <Camera size={32} className="text-white" />
+            </div>
+            <h3 className="font-bold text-gray-900 dark:text-white mb-2">Reconocimiento Facial</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Detecta automáticamente a los estudiantes con IA</p>
+          </div>
+
+          <div className="card dark:bg-gray-900 dark:border-gray-800 text-center p-8">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-yellow-500 to-orange-500 flex items-center justify-center mx-auto mb-4 shadow-lg">
+              <QrCode size={32} className="text-white" />
+            </div>
+            <h3 className="font-bold text-gray-900 dark:text-white mb-2">Código QR</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Los estudiantes escanean desde su celular</p>
+          </div>
+
+          <div className="card dark:bg-gray-900 dark:border-gray-800 text-center p-8">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center mx-auto mb-4 shadow-lg">
+              <UserPlus size={32} className="text-white" />
+            </div>
+            <h3 className="font-bold text-gray-900 dark:text-white mb-2">Registro Manual</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Marca asistencia manualmente si es necesario</p>
+          </div>
+        </div>
+      )}
+
       {activeSession && (
         <>
-          {/* Estadísticas principales */}
+          {/* Estadísticas principales - Rediseñadas */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            {[
-              { label: 'Total', value: totalAprendices, icon: Users, color: 'gray', bg: 'bg-gray-50', border: 'border-l-gray-400', text: 'text-gray-700' },
-              { label: 'Presentes', value: presentes, icon: CheckCircle, color: 'green', bg: 'bg-green-50', border: 'border-l-[#34A853]', text: 'text-[#34A853]' },
-              { label: 'Ausentes', value: pendientes, icon: Clock, color: 'yellow', bg: 'bg-yellow-50', border: 'border-l-[#FBBC05]', text: 'text-[#FBBC05]' },
-              { label: 'Completado', value: `${porcentajeCompletado}%`, icon: TrendingUp, color: 'blue', bg: 'bg-blue-50', border: 'border-l-[#4285F4]', text: 'text-[#4285F4]' },
-            ].map((stat, i) => (
-              <div key={stat.label} 
-                className={`card-sm ${stat.bg} dark:bg-${stat.color}-900/20 text-center border-l-4 ${stat.border} transition-all duration-300 hover:shadow-md transform hover:-translate-y-1`}
-                style={{ animationDelay: `${i * 100}ms` }}>
-                <div className="flex items-center justify-center gap-2 mb-1">
-                  <stat.icon size={16} className={stat.text} />
+            <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 border-l-4 border-l-gray-400 shadow-sm hover:shadow-md transition-all">
+              <div className="flex items-center justify-between mb-3">
+                <div className="w-12 h-12 rounded-xl bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+                  <Users size={24} className="text-gray-600 dark:text-gray-400" />
                 </div>
-                <p className={`text-3xl font-bold ${stat.text} dark:text-gray-300`}>{stat.value}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{stat.label}</p>
               </div>
-            ))}
+              <p className="text-3xl font-bold text-gray-900 dark:text-white mb-1">{totalAprendices}</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Total</p>
+            </div>
+
+            <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 border-l-4 border-l-green-500 shadow-sm hover:shadow-md transition-all">
+              <div className="flex items-center justify-between mb-3">
+                <div className="w-12 h-12 rounded-xl bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+                  <CheckCircle size={24} className="text-green-600 dark:text-green-400" />
+                </div>
+              </div>
+              <p className="text-3xl font-bold text-green-600 dark:text-green-400 mb-1">{presentes}</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Presentes</p>
+            </div>
+
+            <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 border-l-4 border-l-yellow-500 shadow-sm hover:shadow-md transition-all">
+              <div className="flex items-center justify-between mb-3">
+                <div className="w-12 h-12 rounded-xl bg-yellow-100 dark:bg-yellow-900/30 flex items-center justify-center">
+                  <Clock size={24} className="text-yellow-600 dark:text-yellow-400" />
+                </div>
+              </div>
+              <p className="text-3xl font-bold text-yellow-600 dark:text-yellow-400 mb-1">{pendientes}</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Ausentes</p>
+            </div>
+
+            <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 border-l-4 border-l-blue-500 shadow-sm hover:shadow-md transition-all">
+              <div className="flex items-center justify-between mb-3">
+                <div className="w-12 h-12 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                  <TrendingUp size={24} className="text-blue-600 dark:text-blue-400" />
+                </div>
+              </div>
+              <p className="text-3xl font-bold text-blue-600 dark:text-blue-400 mb-1">{porcentajeCompletado}%</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Completado</p>
+            </div>
           </div>
 
           {/* Layout principal: Reconocimiento facial + Registrados */}
@@ -582,14 +645,29 @@ export default function InstructorAsistencia() {
                     style={{ transform: 'scaleX(-1)' }} 
                   />
 
-                  {/* Solo indicador de estado - sin overlays pesados */}
-                  <div className="absolute top-4 right-4 flex items-center gap-2 bg-red-600/90 backdrop-blur-sm px-3 py-1.5 rounded-full">
+                  {/* Nombre detectado */}
+                  {lastDetectedName && (
+                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/60 to-transparent p-6">
+                      <div className="flex items-center justify-center gap-3">
+                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-green-400 to-emerald-600 flex items-center justify-center text-white font-bold text-xl shadow-lg animate-pulse">
+                          {lastDetectedName.charAt(0)}
+                        </div>
+                        <div>
+                          <p className="text-white font-bold text-xl">{lastDetectedName}</p>
+                          <p className="text-green-400 text-sm">Detectado</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Indicador de estado */}
+                  <div className="absolute top-4 right-4 flex items-center gap-2 bg-red-600/90 backdrop-blur-sm px-3 py-1.5 rounded-full shadow-lg">
                     <div className="w-2 h-2 rounded-full bg-white animate-pulse" />
                     <span className="text-white text-xs font-semibold">ACTIVO</span>
                   </div>
 
-                  {/* Contador simple */}
-                  <div className="absolute bottom-4 left-4 bg-black/60 backdrop-blur-sm px-3 py-1.5 rounded-lg">
+                  {/* Contador */}
+                  <div className="absolute top-4 left-4 bg-black/60 backdrop-blur-sm px-3 py-1.5 rounded-lg">
                     <span className="text-white text-xs font-mono">{detectionCount} detecciones</span>
                   </div>
                 </div>
@@ -666,10 +744,13 @@ export default function InstructorAsistencia() {
         </>
       )}
 
-      {/* Historial de Sesiones - Simplificado */}
-      {closedSessions.length > 0 && (
+      {/* Historial de Sesiones - Mejorado */}
+      {!activeSession && closedSessions.length > 0 && (
         <div className="card dark:bg-gray-900 dark:border-gray-800 transition-all duration-300">
-          <h2 className="font-bold text-gray-900 dark:text-white mb-4">Historial de Sesiones</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-bold text-gray-900 dark:text-white text-lg">Historial de Sesiones</h2>
+            <span className="text-xs text-gray-500">{closedSessions.length} sesiones</span>
+          </div>
           
           <div className="space-y-3">
             {closedSessions.slice(0, 5).map((s, idx) => {
