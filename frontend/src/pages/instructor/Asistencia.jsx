@@ -5,12 +5,11 @@ import {
 import fetchApi from '../../services/api';
 import PageHeader from '../../components/PageHeader';
 import EmptyState from '../../components/EmptyState';
-import Modal from '../../components/Modal';
-import FacialScanner from '../../components/FacialScanner';
-import QRAttendance from '../../components/QRAttendance';
 import { useToast } from '../../context/ToastContext';
-import { Play, Square, Users, CheckCircle, Clock, BookOpen, BarChart2, Download, ScanFace, QrCode, Fingerprint, Wifi, RefreshCw, TrendingUp, Award } from 'lucide-react';
+import { Play, Square, Users, CheckCircle, Clock, BookOpen, BarChart2, Download, ScanFace, QrCode, Fingerprint, Wifi, RefreshCw, TrendingUp, Award, X, Camera } from 'lucide-react';
 import { io } from 'socket.io-client';
+import { loadFaceModels, faceDistance, arrayToDescriptor } from '../../utils/faceApi';
+import * as faceapi from 'face-api.js';
 
 const API_BASE = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3000';
 
@@ -49,11 +48,29 @@ export default function InstructorAsistencia() {
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
-  const [selectedFecha, setSelectedFecha] = useState(() => new Date().toISOString().split('T')[0]); // Se deja internamente si es necesario, pero se oculta o elimina
-  const [tab, setTab] = useState('sesion'); // 'sesion' | 'estadisticas'
-  const [facialScannerOpen, setFacialScannerOpen] = useState(false);
-  const [qrModalOpen, setQrModalOpen] = useState(false);
+  const [selectedFecha, setSelectedFecha] = useState(() => new Date().toISOString().split('T')[0]);
+  const [facialScannerActive, setFacialScannerActive] = useState(false);
+  const [qrActive, setQrActive] = useState(false);
+  const [selectedSessionDetail, setSelectedSessionDetail] = useState(null);
   const socketRef = useRef(null);
+
+  // Estados para hardware
+  const [comPort, setComPort] = useState('COM8');
+  const [hardwareConnected, setHardwareConnected] = useState(false);
+
+  // Estados para reconocimiento facial integrado
+  const videoRef = useRef(null);
+  const streamRef = useRef(null);
+  const loopRef = useRef(null);
+  const busyRef = useRef(false);
+  const registeredRef = useRef(new Set());
+  const cooldownRef = useRef({});
+  const [faceReady, setFaceReady] = useState(false);
+  const [liveMatches, setLiveMatches] = useState([]);
+  const liveTimer = useRef(null);
+
+  const THRESHOLD = 0.55;
+  const COOLDOWN_MS = 5000;
 
   useEffect(() => {
     fetchApi('/asistencias/my-active-any').then(activeData => {
@@ -209,13 +226,13 @@ export default function InstructorAsistencia() {
   };
 
   const endSession = async () => {
-    if (!confirm('¿Finalizar la sesión? Los aprendices sin registro serán marcados como ausentes.')) return;
     try {
       await fetchApi(`/asistencias/${activeSession.id}/finalizar`, { method: 'PUT' });
       socketRef.current?.disconnect();
+      stopFacialScanner();
       setActiveSession(null);
       loadSessions();
-      showToast('Sesión finalizada. Ausencias marcadas automáticamente.', 'success');
+      showToast('Sesión finalizada correctamente', 'success');
     } catch (err) { showToast(err.message, 'error'); }
   };
 
@@ -262,16 +279,154 @@ export default function InstructorAsistencia() {
   const pendientes = totalAprendices - presentes;
   const porcentajeCompletado = totalAprendices > 0 ? Math.round((presentes / totalAprendices) * 100) : 0;
 
+  // ─── Funciones de reconocimiento facial integrado ─────────────────────────
+  const startFacialScanner = async () => {
+    if (facialScannerActive) {
+      stopFacialScanner();
+      return;
+    }
+    
+    setFacialScannerActive(true);
+    registeredRef.current = new Set((activeSession.registros || []).map(r => r.aprendizId));
+    
+    try {
+      await loadFaceModels();
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }
+      });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
+      setFaceReady(true);
+      startFaceLoop();
+    } catch (err) {
+      showToast('Error al iniciar cámara: ' + err.message, 'error');
+      setFacialScannerActive(false);
+    }
+  };
+
+  const stopFacialScanner = () => {
+    if (loopRef.current) clearTimeout(loopRef.current);
+    if (liveTimer.current) clearTimeout(liveTimer.current);
+    if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
+    setFacialScannerActive(false);
+    setFaceReady(false);
+    setLiveMatches([]);
+  };
+
+  const startFaceLoop = () => {
+    const OPTIONS = new faceapi.TinyFaceDetectorOptions({ inputSize: 160, scoreThreshold: 0.4 });
+    const candidates = (activeSession?.materia?.ficha?.aprendices || [])
+      .filter(a => a.faceDescriptor?.length === 128)
+      .map(a => ({ ...a, descriptor: arrayToDescriptor(a.faceDescriptor) }));
+
+    const tick = async () => {
+      if (!videoRef.current || videoRef.current.readyState < 2 || busyRef.current) {
+        loopRef.current = setTimeout(tick, 80);
+        return;
+      }
+      busyRef.current = true;
+
+      try {
+        const detections = await faceapi
+          .detectAllFaces(videoRef.current, OPTIONS)
+          .withFaceLandmarks(true)
+          .withFaceDescriptors();
+
+        if (!detections || detections.length === 0) {
+          setLiveMatches([]);
+        } else {
+          const now = Date.now();
+          const matched = [];
+          const toRegister = [];
+
+          for (const det of detections) {
+            let best = null, bestDist = Infinity;
+            for (const c of candidates) {
+              const d = faceDistance(det.descriptor, c.descriptor);
+              if (d < bestDist) { bestDist = d; best = c; }
+            }
+            if (best && bestDist < THRESHOLD) {
+              const alreadyDone = registeredRef.current.has(best.id);
+              const onCooldown = (now - (cooldownRef.current[best.id] || 0)) < COOLDOWN_MS;
+              matched.push({ 
+                id: best.id, 
+                name: best.fullName, 
+                isNew: !alreadyDone && !onCooldown,
+                box: det.detection.box
+              });
+              if (!alreadyDone && !onCooldown) {
+                cooldownRef.current[best.id] = now;
+                toRegister.push(best);
+              }
+            }
+          }
+
+          setLiveMatches(matched);
+          if (liveTimer.current) clearTimeout(liveTimer.current);
+          liveTimer.current = setTimeout(() => setLiveMatches([]), 1500);
+
+          if (toRegister.length > 0) {
+            Promise.all(toRegister.map(saveFacialAttendance)).then(results => {
+              const saved = results.filter(Boolean);
+              if (saved.length > 0) {
+                saved.forEach(a => {
+                  registeredRef.current.add(a.id);
+                  setActiveSession(prev => {
+                    if (!prev) return prev;
+                    if (prev.registros?.some(r => r.aprendizId === a.id)) return prev;
+                    return {
+                      ...prev,
+                      registros: [...(prev.registros || []), {
+                        id: 'facial-' + Date.now(),
+                        aprendizId: a.id,
+                        aprendiz: { fullName: a.fullName },
+                        presente: true,
+                        metodo: 'facial',
+                        timestamp: new Date().toISOString()
+                      }]
+                    };
+                  });
+                  showToast(`✓ ${a.fullName} registrado`, 'success');
+                });
+              }
+            });
+          }
+        }
+      } catch (_) {}
+
+      busyRef.current = false;
+      loopRef.current = setTimeout(tick, 350);
+    };
+
+    loopRef.current = setTimeout(tick, 300);
+  };
+
+  const saveFacialAttendance = async (aprendiz) => {
+    try {
+      await fetchApi('/asistencias/facial-register', {
+        method: 'POST',
+        body: JSON.stringify({ asistenciaId: activeSession.id, aprendizId: aprendiz.id })
+      });
+      return aprendiz;
+    } catch (err) {
+      if (err.message?.includes('ya registró')) registeredRef.current.add(aprendiz.id);
+      return null;
+    }
+  };
+
   // Estados para hardware
   const [comPort, setComPort] = useState('COM8');
   const [hardwareConnected, setHardwareConnected] = useState(false);
 
   return (
     <div className="animate-fade-in space-y-5">
-      <PageHeader title="Asistencia" subtitle="Sesión activa" />
+      <PageHeader title="Asistencia" subtitle={activeSession ? "Sesión activa" : "Control de asistencia"} />
 
-      {/* Selector de materia y botón finalizar */}
-      <div className="card dark:bg-gray-900 dark:border-gray-800">
+      {/* Selector de materia y botón */}
+      <div className="card dark:bg-gray-900 dark:border-gray-800 transition-all duration-300 hover:shadow-lg">
         <div className="flex flex-col sm:flex-row gap-4 items-end">
           <div className="flex-1">
             <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
@@ -293,13 +448,13 @@ export default function InstructorAsistencia() {
               <button 
                 onClick={startSession} 
                 disabled={!selectedMateria || starting} 
-                className="px-6 py-3 rounded-xl bg-[#EA4335] text-white text-sm font-semibold hover:bg-red-600 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
+                className="px-6 py-3 rounded-xl bg-[#34A853] text-white text-sm font-semibold hover:bg-green-600 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transform hover:scale-105">
                 <Play size={16}/> {starting ? 'Iniciando...' : 'Iniciar Sesión'}
               </button>
             ) : (
               <button 
                 onClick={endSession} 
-                className="px-6 py-3 rounded-xl bg-[#EA4335] text-white text-sm font-semibold hover:bg-red-600 transition-all shadow-sm flex items-center gap-2">
+                className="px-6 py-3 rounded-xl bg-[#EA4335] text-white text-sm font-semibold hover:bg-red-600 transition-all shadow-sm flex items-center gap-2 transform hover:scale-105">
                 <Square size={16}/> Finalizar Sesión
               </button>
             )}
@@ -307,204 +462,174 @@ export default function InstructorAsistencia() {
         </div>
       </div>
 
-      {/* Lector de Huella y NFC */}
       {activeSession && (
-        <div className="card dark:bg-gray-900 dark:border-gray-800">
-          <div className="flex items-center gap-2 mb-3">
-            <Fingerprint size={18} className="text-[#4285F4]" />
-            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Lector de Huella y NFC</h3>
-          </div>
-          <div className="flex flex-col sm:flex-row gap-3 items-end">
-            <div className="flex-1">
-              <select 
-                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#4285F4] transition-all"
-                value={comPort}
-                onChange={e => setComPort(e.target.value)}>
-                <option value="COM8">COM8 - seleccion</option>
-                <option value="COM3">COM3</option>
-                <option value="COM4">COM4</option>
-                <option value="COM5">COM5</option>
-                <option value="COM6">COM6</option>
-                <option value="COM7">COM7</option>
-              </select>
-            </div>
-            <div className="flex gap-2">
-              <button 
-                onClick={() => setHardwareConnected(!hardwareConnected)}
-                className="px-5 py-2.5 rounded-xl bg-[#4285F4] text-white text-sm font-semibold hover:bg-blue-600 transition-all shadow-sm flex items-center gap-2">
-                <RefreshCw size={14}/> Vincular Lector
-              </button>
-              <button 
-                onClick={() => setFacialScannerOpen(true)}
-                className="px-5 py-2.5 rounded-xl bg-[#34A853] text-white text-sm font-semibold hover:bg-green-600 transition-all shadow-sm flex items-center gap-2">
-                <ScanFace size={14}/> Escanear Facial
-              </button>
-            </div>
-          </div>
-          {hardwareConnected && (
-            <div className="mt-3 flex items-center gap-2 text-xs text-[#34A853] bg-green-50 dark:bg-green-900/20 px-3 py-2 rounded-lg">
-              <Wifi size={12} />
-              <span>Lector conectado en {comPort}</span>
-            </div>
-          )}
-        </div>
-      )}
-      {/* Estadísticas principales */}
-      {activeSession && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <div className="card-sm bg-gray-50 dark:bg-gray-800 text-center border-l-4 border-l-gray-400">
-            <div className="flex items-center justify-center gap-2 mb-1">
-              <Users size={16} className="text-gray-600 dark:text-gray-400" />
-            </div>
-            <p className="text-3xl font-bold text-gray-700 dark:text-gray-300">{totalAprendices}</p>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Total</p>
-          </div>
-          <div className="card-sm bg-green-50 dark:bg-green-900/20 text-center border-l-4 border-l-[#34A853]">
-            <div className="flex items-center justify-center gap-2 mb-1">
-              <CheckCircle size={16} className="text-[#34A853]" />
-            </div>
-            <p className="text-3xl font-bold text-[#34A853]">{presentes}</p>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Presentes</p>
-          </div>
-          <div className="card-sm bg-yellow-50 dark:bg-yellow-900/20 text-center border-l-4 border-l-[#FBBC05]">
-            <div className="flex items-center justify-center gap-2 mb-1">
-              <Clock size={16} className="text-[#FBBC05]" />
-            </div>
-            <p className="text-3xl font-bold text-[#FBBC05]">{pendientes}</p>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Ausentes</p>
-          </div>
-          <div className="card-sm bg-blue-50 dark:bg-blue-900/20 text-center border-l-4 border-l-[#4285F4]">
-            <div className="flex items-center justify-center gap-2 mb-1">
-              <TrendingUp size={16} className="text-[#4285F4]" />
-            </div>
-            <p className="text-3xl font-bold text-[#4285F4]">{porcentajeCompletado}%</p>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Completado</p>
-          </div>
-        </div>
-      )}
-
-      {/* Sección de Materias y Registrados */}
-      {activeSession && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-          {/* Materias */}
-          <div className="card dark:bg-gray-900 dark:border-gray-800">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-semibold text-[#34A853]">✓ Materias</h3>
-              <button 
-                onClick={() => exportSession(activeSession.id, activeSession.fecha)}
-                className="text-xs text-[#4285F4] hover:underline flex items-center gap-1">
-                <Download size={12}/> Exportar
-              </button>
-            </div>
-            <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-4">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <BookOpen size={14} className="text-gray-600 dark:text-gray-400" />
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    {activeSession.materia?.nombre}
-                  </span>
+        <>
+          {/* Estadísticas principales */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            {[
+              { label: 'Total', value: totalAprendices, icon: Users, color: 'gray', bg: 'bg-gray-50', border: 'border-l-gray-400', text: 'text-gray-700' },
+              { label: 'Presentes', value: presentes, icon: CheckCircle, color: 'green', bg: 'bg-green-50', border: 'border-l-[#34A853]', text: 'text-[#34A853]' },
+              { label: 'Ausentes', value: pendientes, icon: Clock, color: 'yellow', bg: 'bg-yellow-50', border: 'border-l-[#FBBC05]', text: 'text-[#FBBC05]' },
+              { label: 'Completado', value: `${porcentajeCompletado}%`, icon: TrendingUp, color: 'blue', bg: 'bg-blue-50', border: 'border-l-[#4285F4]', text: 'text-[#4285F4]' },
+            ].map((stat, i) => (
+              <div key={stat.label} 
+                className={`card-sm ${stat.bg} dark:bg-${stat.color}-900/20 text-center border-l-4 ${stat.border} transition-all duration-300 hover:shadow-md transform hover:-translate-y-1`}
+                style={{ animationDelay: `${i * 100}ms` }}>
+                <div className="flex items-center justify-center gap-2 mb-1">
+                  <stat.icon size={16} className={stat.text} />
                 </div>
-                <span className="text-xs text-gray-500 dark:text-gray-400">
-                  Ficha {activeSession.materia?.ficha?.numero}
-                </span>
+                <p className={`text-3xl font-bold ${stat.text} dark:text-gray-300`}>{stat.value}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{stat.label}</p>
               </div>
-              <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-2">
-                <span>Progreso</span>
-                <span className="font-semibold">{presentes} / {totalAprendices}</span>
-              </div>
-              <div className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-[#34A853] rounded-full transition-all duration-500"
-                  style={{ width: `${porcentajeCompletado}%` }}
-                />
-              </div>
-            </div>
+            ))}
           </div>
 
-          {/* Registrados */}
-          <div className="card dark:bg-gray-900 dark:border-gray-800">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-semibold text-[#34A853]">✓ Registrados</h3>
-              <span className="text-xs text-gray-500 dark:text-gray-400">{presentes}</span>
-            </div>
-            {presentes === 0 ? (
-              <div className="text-center py-8 text-gray-400 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl">
-                <Users size={28} className="mx-auto mb-2 opacity-30"/>
-                <p className="text-sm">Esperando registros...</p>
+          {/* Layout principal: Reconocimiento facial + Registrados */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+            {/* Reconocimiento Facial - 2 columnas */}
+            <div className="lg:col-span-2 card dark:bg-gray-900 dark:border-gray-800 transition-all duration-300">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Camera size={18} className="text-[#4285F4]" />
+                  <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Reconocimiento Facial</h3>
+                </div>
+                <button 
+                  onClick={startFacialScanner}
+                  className={`px-4 py-2 rounded-xl text-white text-sm font-semibold transition-all shadow-sm flex items-center gap-2 transform hover:scale-105 ${
+                    facialScannerActive 
+                      ? 'bg-[#EA4335] hover:bg-red-600' 
+                      : 'bg-[#34A853] hover:bg-green-600'
+                  }`}>
+                  {facialScannerActive ? <><X size={14}/> Detener</> : <><ScanFace size={14}/> Iniciar Escáner</>}
+                </button>
               </div>
-            ) : (
-              <div className="space-y-2 max-h-64 overflow-y-auto">
-                {activeSession.registros?.filter(r => r.presente !== false).map((reg, i) => (
-                  <div key={reg.id || i} className="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-xl border border-green-100 dark:border-green-800">
-                    <div className="w-10 h-10 rounded-full bg-[#34A853] flex items-center justify-center text-white font-bold text-sm">
-                      {(reg.aprendiz?.fullName || reg.fullName || 'A').charAt(0).toUpperCase()}
+
+              {facialScannerActive ? (
+                <div className="relative rounded-xl overflow-hidden bg-black" style={{ aspectRatio: '4/3', maxHeight: 400 }}>
+                  <video 
+                    ref={videoRef} 
+                    muted 
+                    playsInline 
+                    className="w-full h-full object-cover"
+                    style={{ transform: 'scaleX(-1)' }} 
+                  />
+
+                  {/* Overlay de detección */}
+                  {liveMatches.length > 0 && (
+                    <div className="absolute inset-0">
+                      {liveMatches.map((m, i) => (
+                        <div key={m.id} className="absolute" style={{
+                          left: `${(m.box?.x / videoRef.current?.videoWidth) * 100}%`,
+                          top: `${(m.box?.y / videoRef.current?.videoHeight) * 100}%`,
+                          width: `${(m.box?.width / videoRef.current?.videoWidth) * 100}%`,
+                          height: `${(m.box?.height / videoRef.current?.videoHeight) * 100}%`,
+                        }}>
+                          <div className={`w-full h-full border-4 rounded-lg ${m.isNew ? 'border-[#34A853]' : 'border-[#4285F4]'} animate-pulse`}>
+                            <div className={`absolute -bottom-8 left-0 right-0 ${m.isNew ? 'bg-[#34A853]' : 'bg-[#4285F4]'} text-white px-2 py-1 rounded text-xs font-bold text-center`}>
+                              {m.name}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 truncate">
-                        {reg.aprendiz?.fullName || reg.fullName || 'Aprendiz'}
-                      </p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                        {reg.materia?.ficha?.numero || activeSession.materia?.ficha?.numero || 'Ficha'}
-                      </p>
-                    </div>
-                    <CheckCircle size={18} className="text-[#34A853] shrink-0"/>
+                  )}
+
+                  {/* Guías de esquinas */}
+                  {faceReady && liveMatches.length === 0 && (
+                    <>
+                      <div className="absolute top-4 left-4 w-8 h-8 border-t-2 border-l-2 border-white/50 rounded-tl animate-pulse" />
+                      <div className="absolute top-4 right-4 w-8 h-8 border-t-2 border-r-2 border-white/50 rounded-tr animate-pulse" />
+                      <div className="absolute bottom-4 left-4 w-8 h-8 border-b-2 border-l-2 border-white/50 rounded-bl animate-pulse" />
+                      <div className="absolute bottom-4 right-4 w-8 h-8 border-b-2 border-r-2 border-white/50 rounded-br animate-pulse" />
+                      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-4">
+                        <p className="text-white text-center text-sm">Posiciona tu rostro dentro del marco</p>
+                      </div>
+                    </>
+                  )}
+                </div>
+              ) : (
+                <div className="flex items-center justify-center bg-gray-100 dark:bg-gray-800 rounded-xl" style={{ aspectRatio: '4/3', maxHeight: 400 }}>
+                  <div className="text-center">
+                    <Camera size={48} className="mx-auto mb-3 text-gray-400 opacity-50" />
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Haz clic en "Iniciar Escáner" para comenzar</p>
                   </div>
-                ))}
+                </div>
+              )}
+
+              {/* Botones adicionales */}
+              <div className="mt-4 flex gap-2">
+                <button 
+                  onClick={() => setQrActive(!qrActive)}
+                  className="flex-1 px-4 py-2.5 rounded-xl bg-[#FBBC05] text-white text-sm font-semibold hover:bg-yellow-600 transition-all shadow-sm flex items-center justify-center gap-2 transform hover:scale-105">
+                  <QrCode size={14}/> Código QR
+                </button>
+                <button 
+                  onClick={() => exportSession(activeSession.id, activeSession.fecha)}
+                  className="flex-1 px-4 py-2.5 rounded-xl bg-[#4285F4] text-white text-sm font-semibold hover:bg-blue-600 transition-all shadow-sm flex items-center justify-center gap-2 transform hover:scale-105">
+                  <Download size={14}/> Exportar
+                </button>
               </div>
-            )}
+            </div>
+
+            {/* Registrados - 1 columna */}
+            <div className="card dark:bg-gray-900 dark:border-gray-800 transition-all duration-300">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-semibold text-[#34A853]">✓ Registrados</h3>
+                <span className="px-3 py-1 rounded-full bg-[#34A853] text-white text-xs font-bold">{presentes}</span>
+              </div>
+              {presentes === 0 ? (
+                <div className="text-center py-12 text-gray-400 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl">
+                  <Users size={32} className="mx-auto mb-2 opacity-30"/>
+                  <p className="text-sm">Esperando registros...</p>
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
+                  {activeSession.registros?.filter(r => r.presente !== false).map((reg, i) => (
+                    <div 
+                      key={reg.id || i} 
+                      className="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-xl border border-green-100 dark:border-green-800 transition-all duration-300 hover:shadow-md transform hover:-translate-y-0.5"
+                      style={{ animation: `slideIn 0.3s ease-out ${i * 50}ms` }}>
+                      <div className="w-10 h-10 rounded-full bg-[#34A853] flex items-center justify-center text-white font-bold text-sm shadow-md">
+                        {(reg.aprendiz?.fullName || reg.fullName || 'A').charAt(0).toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 truncate">
+                          {reg.aprendiz?.fullName || reg.fullName || 'Aprendiz'}
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          {reg.metodo || 'manual'} • {new Date(reg.timestamp).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                      </div>
+                      <CheckCircle size={18} className="text-[#34A853] shrink-0"/>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+        </>
       )}
 
-      {/* Historial de Sesiones */}
+      {/* Historial de Sesiones - Simplificado */}
       {closedSessions.length > 0 && (
-        <div className="card dark:bg-gray-900 dark:border-gray-800">
+        <div className="card dark:bg-gray-900 dark:border-gray-800 transition-all duration-300">
           <h2 className="font-bold text-gray-900 dark:text-white mb-4">Historial de Sesiones</h2>
           
-          {/* Estadísticas del historial */}
-          <div className="grid grid-cols-3 gap-4 mb-5">
-            <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-3 text-center">
-              <p className="text-2xl font-bold text-[#4285F4]">{closedSessions.length}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Total Sesiones</p>
-            </div>
-            <div className="bg-green-50 dark:bg-green-900/20 rounded-xl p-3 text-center">
-              <p className="text-2xl font-bold text-[#34A853]">
-                {totalPresentes + totalAusentes > 0 
-                  ? Math.round((totalPresentes / (totalPresentes + totalAusentes)) * 100) 
-                  : 0}%
-              </p>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Promedio Asistencia</p>
-            </div>
-            <div className="bg-purple-50 dark:bg-purple-900/20 rounded-xl p-3 text-center">
-              <p className="text-2xl font-bold text-purple-600">
-                {closedSessions.length > 0 
-                  ? Math.max(...closedSessions.map(s => {
-                      const p = s.registros?.filter(r => r.presente).length || 0;
-                      const t = s.registros?.length || 0;
-                      return t > 0 ? Math.round((p / t) * 100) : 0;
-                    }))
-                  : 0}%
-              </p>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Mejor Sesión</p>
-            </div>
-          </div>
-
-          {/* Lista de sesiones */}
-          <div className="space-y-2">
-            {closedSessions.slice(0, 5).map(s => {
+          <div className="space-y-3">
+            {closedSessions.slice(0, 5).map((s, idx) => {
               const p = s.registros?.filter(r => r.presente).length || 0;
               const t = s.registros?.length || 0;
               const pct = t > 0 ? Math.round((p / t) * 100) : 0;
-              const ausentes = t - p;
               
               return (
-                <div key={s.id} className="bg-gray-50 dark:bg-gray-800 rounded-xl p-4">
+                <div 
+                  key={s.id} 
+                  className="bg-gray-50 dark:bg-gray-800 rounded-xl p-4 transition-all duration-300 hover:shadow-md transform hover:-translate-y-0.5"
+                  style={{ animation: `slideIn 0.3s ease-out ${idx * 100}ms` }}>
                   <div className="flex items-center justify-between mb-3">
                     <div>
                       <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">{s.fecha}</p>
-                      <p className="text-xs text-gray-400">
-                        Monitor: {s.instructor?.fullName?.split(' ').slice(0, 2).join(' ') || 'Instructor'}
-                      </p>
+                      <p className="text-xs text-gray-400">{s.materia?.nombre}</p>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
@@ -516,31 +641,25 @@ export default function InstructorAsistencia() {
                       </span>
                       <button 
                         onClick={() => exportSession(s.id, s.fecha)} 
-                        className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors" 
-                        title="Exportar Sesión">
+                        className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-all transform hover:scale-110" 
+                        title="Exportar">
                         <Download size={14} className="text-[#34A853]"/>
                       </button>
                     </div>
                   </div>
                   
-                  <div className="grid grid-cols-3 gap-2 mb-2">
-                    <div className="text-center">
-                      <p className="text-lg font-bold text-gray-700 dark:text-gray-300">{t}</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">Total</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-lg font-bold text-[#34A853]">{p}</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">Presentes</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-lg font-bold text-[#EA4335]">{ausentes}</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">Ausentes</p>
-                    </div>
+                  <div className="flex items-center gap-4 text-xs mb-2">
+                    <span className="text-gray-600 dark:text-gray-400">
+                      <strong className="text-gray-800 dark:text-gray-200">{p}</strong> presentes
+                    </span>
+                    <span className="text-gray-600 dark:text-gray-400">
+                      <strong className="text-gray-800 dark:text-gray-200">{t - p}</strong> ausentes
+                    </span>
                   </div>
 
                   <div className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                     <div 
-                      className="h-full bg-[#34A853] rounded-full transition-all"
+                      className="h-full bg-[#34A853] rounded-full transition-all duration-500"
                       style={{ width: `${pct}%` }}
                     />
                   </div>
@@ -549,43 +668,6 @@ export default function InstructorAsistencia() {
             })}
           </div>
         </div>
-      )}
-      <Modal open={facialScannerOpen} onClose={() => setFacialScannerOpen(false)} title="Reconocimiento Facial Activo">
-        {activeSession && (
-          <FacialScanner
-            asistenciaId={activeSession.id}
-            fichaId={activeSession.materia?.ficha?.id}
-            aprendices={activeSession.materia?.ficha?.aprendices || []}
-            alreadyRegistered={new Set((activeSession.registros || []).map(r => r.aprendizId))}
-            onRegistered={(aprendiz) => {
-              showToast(`✓ ${aprendiz.fullName} marcado como presente`, 'success');
-              setActiveSession(prev => {
-                if (!prev) return prev;
-                if (prev.registros?.some(r => r.aprendizId === aprendiz.id)) return prev;
-                return {
-                  ...prev,
-                  registros: [...(prev.registros || []), {
-                    id: 'facial-' + Date.now(),
-                    aprendizId: aprendiz.id,
-                    aprendiz: { fullName: aprendiz.fullName },
-                    presente: true,
-                    metodo: 'facial',
-                    timestamp: new Date().toISOString()
-                  }]
-                };
-              });
-            }}
-            onClose={() => setFacialScannerOpen(false)}
-          />
-        )}
-      </Modal>
-
-      {/* Modal QR */}
-      {qrModalOpen && activeSession && (
-        <QRAttendance 
-          asistenciaId={activeSession.id}
-          onClose={() => setQrModalOpen(false)}
-        />
       )}
     </div>
   );
