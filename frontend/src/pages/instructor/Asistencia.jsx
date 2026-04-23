@@ -56,8 +56,13 @@ export default function InstructorAsistencia() {
   const socketRef = useRef(null);
 
   // Estados para hardware
-  const [comPort, setComPort] = useState('COM8');
+  const [comPort, setComPort] = useState('');
   const [hardwareConnected, setHardwareConnected] = useState(false);
+  const [connecting, setConnecting] = useState(false);
+  const [availablePorts, setAvailablePorts] = useState([]);
+
+  // Estados para registro manual
+  const [registering, setRegistering] = useState(new Set());
 
   // Estados para reconocimiento facial integrado
   const videoRef = useRef(null);
@@ -429,7 +434,71 @@ export default function InstructorAsistencia() {
     }
   };
 
-  // ─── Funciones de QR ───────────────────────────────────────────────────────
+  // ─── Funciones de Hardware ────────────────────────────────────────────────
+  const loadAvailablePorts = async () => {
+    try {
+      const data = await fetchApi('/serial/ports');
+      setAvailablePorts(data.ports || []);
+      // Si hay puertos disponibles y no hay uno seleccionado, seleccionar el primero
+      if (data.ports && data.ports.length > 0 && !comPort) {
+        setComPort(data.ports[0].path);
+      }
+    } catch (error) {
+      console.error('Error loading ports:', error);
+      showToast('Error al cargar puertos COM', 'error');
+    }
+  };
+
+  const connectHardware = async () => {
+    if (!comPort) {
+      showToast('Selecciona un puerto COM primero', 'error');
+      return;
+    }
+    
+    setConnecting(true);
+    try {
+      await fetchApi('/serial/connect', {
+        method: 'POST',
+        body: JSON.stringify({ path: comPort })
+      });
+      setHardwareConnected(true);
+      showToast(`✅ Conectado a ${comPort}`, 'success');
+    } catch (error) {
+      showToast(`Error de conexión: ${error.message}`, 'error');
+      setHardwareConnected(false);
+    } finally {
+      setConnecting(false);
+    }
+  };
+
+  const disconnectHardware = async () => {
+    try {
+      await fetchApi('/serial/disconnect', { method: 'POST' });
+      setHardwareConnected(false);
+      showToast('Hardware desconectado', 'info');
+    } catch (error) {
+      showToast(`Error al desconectar: ${error.message}`, 'error');
+    }
+  };
+
+  const toggleHardware = () => {
+    if (hardwareConnected) {
+      disconnectHardware();
+    } else {
+      connectHardware();
+    }
+  };
+
+  // Cargar puertos al montar el componente y cuando se activa una sesión
+  useEffect(() => {
+    loadAvailablePorts();
+  }, []);
+
+  useEffect(() => {
+    if (activeSession) {
+      loadAvailablePorts(); // Recargar puertos cuando se inicia sesión
+    }
+  }, [activeSession]);
   const generateQR = async () => {
     try {
       const data = await fetchApi('/qr/generate', {
@@ -472,13 +541,44 @@ export default function InstructorAsistencia() {
 
   // ─── Registro Manual ───────────────────────────────────────────────────────
   const registerManualStudent = async (aprendizId) => {
+    // Prevenir múltiples clicks
+    if (registering.has(aprendizId)) {
+      return;
+    }
+
     // Prevenir registros duplicados
     if (activeSession.registros?.some(r => r.aprendizId === aprendizId)) {
       showToast('Este estudiante ya está registrado', 'error');
       return;
     }
 
+    // Marcar como registrando inmediatamente
+    setRegistering(prev => new Set([...prev, aprendizId]));
+
     try {
+      const aprendiz = activeSession.materia?.ficha?.aprendices?.find(a => a.id === aprendizId);
+      
+      // Crear ID único para el registro temporal
+      const tempId = `temp-manual-${aprendizId}-${Date.now()}`;
+      
+      // Actualizar UI inmediatamente (optimistic update)
+      const tempRegistro = {
+        id: tempId,
+        aprendizId: aprendizId,
+        aprendiz: { fullName: aprendiz?.fullName },
+        presente: true,
+        metodo: 'manual',
+        timestamp: new Date().toISOString()
+      };
+
+      setActiveSession(prev => ({
+        ...prev,
+        registros: [...(prev.registros || []), tempRegistro]
+      }));
+
+      showToast(`✅ ${aprendiz?.fullName} registrado`, 'success');
+
+      // Enviar al servidor
       await fetchApi('/asistencias/manual-register', {
         method: 'POST',
         body: JSON.stringify({ 
@@ -486,23 +586,34 @@ export default function InstructorAsistencia() {
           aprendizId: aprendizId 
         })
       });
-      
-      const aprendiz = activeSession.materia?.ficha?.aprendices?.find(a => a.id === aprendizId);
+
+      // Si llegamos aquí, el registro fue exitoso en el servidor
+      // Actualizar el registro temporal con datos reales del servidor
       setActiveSession(prev => ({
         ...prev,
-        registros: [...(prev.registros || []), {
-          id: 'manual-' + Date.now(),
-          aprendizId: aprendizId,
-          aprendiz: { fullName: aprendiz?.fullName },
-          presente: true,
-          metodo: 'manual',
-          timestamp: new Date().toISOString()
-        }]
+        registros: prev.registros?.map(r => 
+          r.id === tempId 
+            ? { ...r, id: `manual-${aprendizId}-${Date.now()}` } // ID más permanente
+            : r
+        ) || []
       }));
-      
-      showToast(`✅ ${aprendiz?.fullName} registrado`, 'success');
+
     } catch (err) {
-      showToast(err.message, 'error');
+      // Revertir la UI si falla el servidor
+      setActiveSession(prev => ({
+        ...prev,
+        registros: prev.registros?.filter(r => r.id !== `temp-manual-${aprendizId}-${Date.now()}`) || []
+      }));
+      showToast(`Error: ${err.message}`, 'error');
+    } finally {
+      // Siempre remover del estado de registrando
+      setTimeout(() => {
+        setRegistering(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(aprendizId);
+          return newSet;
+        });
+      }, 500); // Pequeño delay para evitar doble click
     }
   };
 
@@ -598,31 +709,56 @@ export default function InstructorAsistencia() {
                 <select 
                   className="w-full px-4 py-2.5 rounded-xl border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#4285F4] focus:border-[#4285F4] transition-all"
                   value={comPort}
-                  onChange={e => setComPort(e.target.value)}>
-                  <option value="COM8">COM8 - selección</option>
-                  <option value="COM3">COM3</option>
-                  <option value="COM4">COM4</option>
-                  <option value="COM5">COM5</option>
-                  <option value="COM6">COM6</option>
-                  <option value="COM7">COM7</option>
+                  onChange={e => setComPort(e.target.value)}
+                  disabled={hardwareConnected || connecting}>
+                  <option value="">Seleccionar puerto...</option>
+                  {availablePorts.length === 0 ? (
+                    <option value="" disabled>No hay puertos disponibles</option>
+                  ) : (
+                    availablePorts.map(port => (
+                      <option key={port.path} value={port.path}>
+                        {port.path} - {port.manufacturer || 'Desconocido'}
+                      </option>
+                    ))
+                  )}
                 </select>
               </div>
-              <div>
+              <div className="flex gap-2">
                 <button 
-                  onClick={() => setHardwareConnected(!hardwareConnected)}
-                  className={`px-5 py-2.5 rounded-xl text-white text-sm font-semibold transition-all shadow-md flex items-center gap-2 transform hover:scale-105 ${
+                  onClick={loadAvailablePorts}
+                  disabled={connecting}
+                  className="px-3 py-2.5 rounded-xl bg-gray-500 hover:bg-gray-600 text-white text-sm font-semibold transition-all shadow-md flex items-center gap-2 disabled:opacity-50"
+                  title="Actualizar lista de puertos">
+                  <RefreshCw size={14} className={connecting ? 'animate-spin' : ''} />
+                </button>
+                <button 
+                  onClick={toggleHardware}
+                  disabled={connecting || !comPort}
+                  className={`px-5 py-2.5 rounded-xl text-white text-sm font-semibold transition-all shadow-md flex items-center gap-2 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed ${
                     hardwareConnected 
                       ? 'bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700' 
                       : 'bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700'
                   }`}>
-                  {hardwareConnected ? <><X size={14}/> Desconectar</> : <><RefreshCw size={14}/> Vincular Lector</>}
+                  {connecting ? (
+                    <><RefreshCw size={14} className="animate-spin"/> Conectando...</>
+                  ) : hardwareConnected ? (
+                    <><X size={14}/> Desconectar</>
+                  ) : (
+                    <><Wifi size={14}/> Conectar</>
+                  )}
                 </button>
               </div>
             </div>
             {hardwareConnected && (
               <div className="mt-3 flex items-center gap-2 text-xs text-[#34A853] bg-green-50 dark:bg-green-900/20 px-3 py-2 rounded-lg animate-fade-in">
                 <Wifi size={12} />
-                <span>Lector conectado en {comPort}</span>
+                <span>Hardware conectado en {comPort} - Listo para recibir datos</span>
+              </div>
+            )}
+            {!hardwareConnected && availablePorts.length === 0 && (
+              <div className="mt-3 flex items-center gap-2 text-xs text-yellow-600 bg-yellow-50 dark:bg-yellow-900/20 px-3 py-2 rounded-lg">
+                <RefreshCw size={12} />
+                <span>No se encontraron puertos COM. Conecta el hardware y actualiza la lista.</span>
               </div>
             )}
           </div>
@@ -960,26 +1096,52 @@ export default function InstructorAsistencia() {
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-96 overflow-y-auto custom-scrollbar">
-                      {pendingStudents.map((student, i) => (
-                        <button
-                          key={student.id}
-                          onClick={() => registerManualStudent(student.id)}
-                          className="flex items-center gap-3 p-4 bg-gray-50 dark:bg-gray-800 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-xl border-2 border-transparent hover:border-purple-200 dark:hover:border-purple-700 transition-all transform hover:scale-105 text-left"
-                          style={{ animation: `slideIn 0.3s ease-out ${i * 50}ms` }}>
-                          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-400 to-pink-500 flex items-center justify-center text-white font-bold text-lg shadow-md">
-                            {student.fullName.charAt(0).toUpperCase()}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 truncate">
-                              {student.fullName}
-                            </p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">
-                              {student.email || 'Sin email'}
-                            </p>
-                          </div>
-                          <UserPlus size={18} className="text-purple-500 opacity-60" />
-                        </button>
-                      ))}
+                      {pendingStudents.map((student, i) => {
+                        const isRegistering = registering.has(student.id);
+                        return (
+                          <button
+                            key={student.id}
+                            onClick={() => !isRegistering && registerManualStudent(student.id)}
+                            disabled={isRegistering}
+                            className={`flex items-center gap-3 p-4 rounded-xl border-2 transition-all transform text-left ${
+                              isRegistering 
+                                ? 'bg-green-100 dark:bg-green-900/30 border-green-300 dark:border-green-700 cursor-not-allowed opacity-75 scale-95'
+                                : 'bg-gray-50 dark:bg-gray-800 hover:bg-purple-50 dark:hover:bg-purple-900/20 border-transparent hover:border-purple-200 dark:hover:border-purple-700 hover:scale-105 active:scale-95'
+                            }`}
+                            style={{ 
+                              animation: `slideIn 0.3s ease-out ${i * 50}ms`,
+                              pointerEvents: isRegistering ? 'none' : 'auto'
+                            }}>
+                            <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-md transition-all ${
+                              isRegistering 
+                                ? 'bg-gradient-to-br from-green-400 to-emerald-500 animate-pulse'
+                                : 'bg-gradient-to-br from-purple-400 to-pink-500'
+                            }`}>
+                              {isRegistering ? (
+                                <CheckCircle size={20} />
+                              ) : (
+                                student.fullName.charAt(0).toUpperCase()
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 truncate">
+                                {student.fullName}
+                              </p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400">
+                                {isRegistering ? '✓ Registrando...' : (student.email || 'Clic para registrar')}
+                              </p>
+                            </div>
+                            {isRegistering ? (
+                              <div className="flex items-center gap-1">
+                                <RefreshCw size={16} className="text-green-500 animate-spin" />
+                                <CheckCircle size={16} className="text-green-500" />
+                              </div>
+                            ) : (
+                              <UserPlus size={18} className="text-purple-500 opacity-60 group-hover:opacity-100 transition-opacity" />
+                            )}
+                          </button>
+                        );
+                      })}
                     </div>
                   </>
                 );
