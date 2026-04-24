@@ -75,7 +75,7 @@ function RankingPanel({ lb, maxHeight = 380, hasFicha = true }) {
           <div style={{ fontSize:32, marginBottom:8 }}>💥</div>¡Sé el primero!
         </div>
       ) : (
-        <div style={{ display:'flex', flexDirection:'column', gap:5, overflowY:'auto', maxHeight }}>
+        <div style={{ display:'flex', flexDirection:'column', gap:5, overflowY: lb.length > 10 ? 'auto' : 'visible', maxHeight: lb.length > 10 ? maxHeight : 'none' }}>
           {lb.map((e, i) => {
             const top = i < 3;
             const c   = top ? TOP_COLORS[i] : null;

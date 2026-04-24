@@ -224,7 +224,7 @@ function BreakoutGame({ onClose, currentUser }) {
   },[dead,score,currentUser]);
 
   const LBContent=()=>(
-    <div style={{display:'flex',flexDirection:'column',gap:6,overflowY:'auto',maxHeight:isMobile?240:420}}>
+    <div style={{display:'flex',flexDirection:'column',gap:6}}>
       <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:4}}>
         <span style={{fontSize:14,fontWeight:800,color:'white',letterSpacing:'-0.3px'}}>Ranking</span>
         <span style={{fontSize:14}}>🏆</span>
@@ -233,7 +233,8 @@ function BreakoutGame({ onClose, currentUser }) {
         ?<p style={{color:'rgba(255,255,255,0.4)',textAlign:'center',padding:'16px 0',fontSize:12}}>🏫 Únete a una ficha para ver el ranking</p>
         :lb.length===0
           ?<p style={{color:'rgba(255,255,255,0.4)',textAlign:'center',padding:'16px 0',fontSize:12}}>¡Sé el primero!</p>
-          :[...lb].sort((a,b)=>b.score-a.score).map((e,i)=>{
+          :<div style={{display:'flex',flexDirection:'column',gap:6,overflowY:lb.length>10?'auto':'visible',maxHeight:lb.length>10?(isMobile?240:420):'none'}}>
+            {[...lb].sort((a,b)=>b.score-a.score).map((e,i)=>{
           const isTop=i<3,col=isTop?TOP_COLORS[i]:null;
           return(<div key={i} style={{display:'flex',alignItems:'center',gap:7,padding:'7px 9px',borderRadius:12,background:isTop?col.bg:'rgba(255,255,255,0.08)',border:isTop?`1px solid ${col.glow}`:'1px solid rgba(255,255,255,0.12)'}}>
             <span style={{fontSize:isTop?15:11,fontWeight:700,minWidth:20,color:isTop?col.text:'rgba(255,255,255,0.4)'}}>{isTop?MEDAL[i]:i+1}</span>
@@ -242,7 +243,8 @@ function BreakoutGame({ onClose, currentUser }) {
             <div style={{flex:1,minWidth:0}}><p style={{margin:0,fontWeight:700,fontSize:10,color:isTop?col.text:'white',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{e.name}</p></div>
             <span style={{fontWeight:800,fontSize:12,color:isTop?col.text:'white'}}>{e.score}</span>
           </div>);
-        })
+        })}
+          </div>
       }
     </div>
   );
@@ -364,7 +366,7 @@ function FlappyGame({ onClose, currentUser }) {
   const [restartKey, setRestartKey] = useState(0);
 
   // Constantes del juego
-  const W=340, H=520, PW=54, GAP=148;
+  const W=340, H=420, PW=54, GAP=148;
 
   useEffect(()=>{
     fetchFlappyLB(fichaId).then(d=>setLb(d));
@@ -604,7 +606,7 @@ function FlappyGame({ onClose, currentUser }) {
         ?<div style={{textAlign:'center',padding:'16px 0',color:'#6e6e73',fontSize:12}}><div style={{fontSize:28,marginBottom:6}}>🏫</div>Únete a una ficha para ver el ranking</div>
         :lb.length===0
           ?<div style={{textAlign:'center',padding:'16px 0',color:'#6e6e73',fontSize:12}}><div style={{fontSize:28,marginBottom:6}}>🥜</div>¡Sé el primero!</div>
-          :<div style={{display:'flex',flexDirection:'column',gap:5,overflowY:'auto',maxHeight:H-60}}>
+          :<div style={{display:'flex',flexDirection:'column',gap:5,overflowY:lb.length>10?'auto':'visible',maxHeight:lb.length>10?(H-60):'none'}}>
             {[...lb].sort((a,b)=>b.score-a.score).map((entry,i)=>{
               const isTop=i<3,col=isTop?TOP_COLORS[i]:null;
               return(<div key={i} style={{display:'flex',alignItems:'center',gap:7,padding:'7px 9px',borderRadius:13,background:isTop?col.bg:'rgba(255,255,255,0.35)',border:isTop?`1px solid ${col.glow}`:'1px solid rgba(255,255,255,0.5)'}}>
@@ -1159,7 +1161,7 @@ function SnakeGame({ onClose, currentUser }) {
       ):lb.length===0?(
         <div style={{textAlign:'center',padding:'20px 0',color:'#6e6e73',fontSize:12}}><div style={{fontSize:28,marginBottom:6}}>🎮</div>¡Sé el primero!</div>
       ):(
-        <div style={{display:'flex',flexDirection:'column',gap:5,overflowY:'auto',maxHeight: window.innerHeight > 700 ? 460 : 380}}>
+        <div style={{display:'flex',flexDirection:'column',gap:5,overflowY:lb.length>10?'auto':'visible',maxHeight:lb.length>10?(window.innerHeight > 700 ? 460 : 380):'none'}}>
           {[...lb].sort((a,b)=>b.score-a.score).map((entry,i)=>{
             const isTop=i<3,col=isTop?TOP_COLORS[i]:null;
             return(<div key={i} style={{display:'flex',alignItems:'center',gap:7,padding:'7px 9px',borderRadius:13,background:isTop?col.bg:'rgba(255,255,255,0.35)',border:isTop?`1px solid ${col.glow}`:'1px solid rgba(255,255,255,0.5)',boxShadow:isTop?`0 3px 10px ${col.glow}`:'none'}}>
@@ -1437,6 +1439,7 @@ export default function Configuracion() {
   const [showSnake, setShowSnake] = useState(false);
   const secTimer = useRef(null);
   const handleSecClick = () => {
+    if (showSnake) return; // Evitar clics adicionales cuando el juego está abierto
     setSecClicks(n => {
       const next = n + 1;
       if (next >= 7) { setShowSnake(true); return 0; }
@@ -1451,6 +1454,7 @@ export default function Configuracion() {
   const [showArk, setShowArk]     = useState(false);
   const arkTimer = useRef(null);
   const handleArkClick = () => {
+    if (showArk) return; // Evitar clics adicionales cuando el juego está abierto
     setArkClicks(n => {
       const next = n + 1;
       if (next >= 7) { setShowArk(true); return 0; }
@@ -1465,6 +1469,7 @@ export default function Configuracion() {
   const [showFlappy, setShowFlappy]     = useState(false);
   const idiomaTimer = useRef(null);
   const handleIdiomaClick = () => {
+    if (showFlappy || showMemory) return; // Evitar clics adicionales cuando el juego está abierto
     setIdiomaClicks(n => {
       const next = n + 1;
       if (next >= 10) { setShowMemory(true); return 0; }
@@ -1480,6 +1485,7 @@ export default function Configuracion() {
   const [showTower,  setShowTower]  = useState(false);
   const notiTimer = useRef(null);
   const handleNotiClick = () => {
+    if (showTower) return; // Evitar clics adicionales cuando el juego está abierto
     setNotiClicks(n => {
       const next = n + 1;
       if (next >= 7) { setShowTower(true); return 0; }
@@ -1494,6 +1500,7 @@ export default function Configuracion() {
   const [showMemory, setShowMemory] = useState(false);
   const espanolTimer = useRef(null);
   const handleEspanolClick = () => {
+    if (showMemory) return; // Evitar clics adicionales cuando el juego está abierto
     setEspanolClicks(n => {
       const next = n + 1;
       if (next >= 7) { setShowMemory(true); return 0; }
@@ -1508,6 +1515,7 @@ export default function Configuracion() {
   const [showReaction, setShowReaction] = useState(false);
   const perfilTimer = useRef(null);
   const handlePerfilClick = () => {
+    if (showReaction) return; // Evitar clics adicionales cuando el juego está abierto
     setPerfilClicks(n => {
       const next = n + 1;
       if (next >= 7) { setShowReaction(true); return 0; }
@@ -1522,6 +1530,7 @@ export default function Configuracion() {
   const [showWordle,   setShowWordle]   = useState(false);
   const wordleTimer = useRef(null);
   const handleWordleClick = () => {
+    if (showWordle) return; // Evitar clics adicionales cuando el juego está abierto
     setWordleClicks(n => {
       const next = n + 1;
       if (next >= 7) { setShowWordle(true); return 0; }
@@ -1650,12 +1659,26 @@ export default function Configuracion() {
             <label className="input-label">Correo electrónico</label>
             <input type="email" className="input-field opacity-60 cursor-not-allowed" value={user?.email||''} disabled/>
             <p className="text-xs text-gray-400 mt-1 cursor-default select-none" onClick={handleWordleClick}>El correo no puede modificarse</p>
+            {wordleClicks > 0 && wordleClicks < 7 && (
+              <div className="mt-2 text-center">
+                <p className="text-xs font-medium text-yellow-500 animate-pulse">
+                  📝 {7 - wordleClicks} {7 - wordleClicks === 1 ? 'clic más' : 'clics más'}...
+                </p>
+              </div>
+            )}
           </div>
           <button type="submit" disabled={savingProfile} className="btn-primary flex items-center gap-2">
             {savingProfile ? <Loader size={15} className="animate-spin"/> : <Save size={15}/>}
             {savingProfile ? 'Guardando...' : 'Guardar perfil'}
           </button>
         </form>
+        {perfilClicks > 0 && perfilClicks < 7 && (
+          <div className="mt-3 text-center">
+            <p className="text-xs font-medium text-blue-500 animate-pulse">
+              🎮 {7 - perfilClicks} {7 - perfilClicks === 1 ? 'clic más' : 'clics más'}...
+            </p>
+          </div>
+        )}
       </Section>
 
       {/* Apariencia */}
@@ -1674,7 +1697,13 @@ export default function Configuracion() {
             );
           })}
         </div>
-        {arkClicks > 0 && arkClicks < 7 && <p className="text-xs text-gray-300 text-center mt-2">{7-arkClicks} más...</p>}
+        {arkClicks > 0 && arkClicks < 7 && (
+          <div className="mt-3 text-center">
+            <p className="text-xs font-medium text-blue-500 animate-pulse">
+              🎯 {7 - arkClicks} {7 - arkClicks === 1 ? 'clic más' : 'clics más'}...
+            </p>
+          </div>
+        )}
       </Section>
 
       {/* Idioma */}
@@ -1697,8 +1726,20 @@ export default function Configuracion() {
           ))}
         </div>
         <p className="text-xs text-gray-400 mt-3">{t('englishComingSoon')}</p>
-        {idiomaClicks > 0 && idiomaClicks < 7 && <p className="text-xs text-gray-300 text-center mt-1">{7-idiomaClicks} más...</p>}
-        {espanolClicks > 0 && espanolClicks < 7 && <p className="text-xs text-blue-300 text-center mt-1">Memory: {7-espanolClicks} más...</p>}
+        {idiomaClicks > 0 && idiomaClicks < 7 && (
+          <div className="mt-2 text-center">
+            <p className="text-xs font-medium text-blue-500 animate-pulse">
+              🥜 {7 - idiomaClicks} {7 - idiomaClicks === 1 ? 'clic más' : 'clics más'}...
+            </p>
+          </div>
+        )}
+        {espanolClicks > 0 && espanolClicks < 7 && (
+          <div className="mt-2 text-center">
+            <p className="text-xs font-medium text-purple-500 animate-pulse">
+              🧠 Memory: {7 - espanolClicks} {7 - espanolClicks === 1 ? 'clic más' : 'clics más'}...
+            </p>
+          </div>
+        )}
       </Section>
 
       {/* Notificaciones */}
@@ -1707,7 +1748,13 @@ export default function Configuracion() {
           <ToggleSwitch checked={settings.notifications} onChange={v=>updateSetting('notifications',v)}
             label={t('sysNotifications')} description={t('sysDesc')}/>
         </div>
-        {notiClicks > 0 && notiClicks < 7 && <p className="text-xs text-gray-300 text-center mt-1">{7-notiClicks} más...</p>}
+        {notiClicks > 0 && notiClicks < 7 && (
+          <div className="mt-3 text-center">
+            <p className="text-xs font-medium text-blue-500 animate-pulse">
+              🍰 {7 - notiClicks} {7 - notiClicks === 1 ? 'clic más' : 'clics más'}...
+            </p>
+          </div>
+        )}
       </Section>
 
       {/* Hardware — solo instructores */}
@@ -1728,7 +1775,13 @@ export default function Configuracion() {
               {user?.userType}
             </p>
           </div>
-          {secClicks > 0 && secClicks < 7 && <p className="text-xs text-gray-300 text-center">{7-secClicks} más...</p>}
+          {secClicks > 0 && secClicks < 7 && (
+            <div className="text-center">
+              <p className="text-xs font-medium text-green-500 animate-pulse">
+                🐍 {7 - secClicks} {7 - secClicks === 1 ? 'clic más' : 'clics más'}...
+              </p>
+            </div>
+          )}
           {showClear && (
             <div className="p-3 bg-red-50 border border-red-200 rounded-xl space-y-2">
               <p className="text-xs font-bold text-red-600">{t('advSensor')}</p>

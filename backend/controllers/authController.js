@@ -1,10 +1,7 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { PrismaClient } = require('@prisma/client');
+const prisma = require('../lib/prisma');
 const { uploadToSupabase, isSupabaseConfigured } = require('../utils/supabaseStorage');
-const prisma = new PrismaClient({
-  datasources: { db: { url: process.env.DIRECT_URL || process.env.DATABASE_URL } }
-});
 
 // RF01 - Registro
 const register = async (req, res) => {

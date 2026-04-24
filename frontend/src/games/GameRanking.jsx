@@ -41,7 +41,7 @@ export default function GameRanking({ lb = [], game = '', maxHeight = 400, hasFi
           ¡Sé el primero en el ranking!
         </div>
       ) : (
-        <div style={{ display:'flex', flexDirection:'column', gap:5, overflowY:'auto', maxHeight }}>
+        <div style={{ display:'flex', flexDirection:'column', gap:5, overflowY: sorted.length > 10 ? 'auto' : 'visible', maxHeight: sorted.length > 10 ? maxHeight : 'none' }}>
           {sorted.map((entry, i) => {
             const isTop = i < 3;
             const col   = isTop ? TOP_COLORS[i] : null;
