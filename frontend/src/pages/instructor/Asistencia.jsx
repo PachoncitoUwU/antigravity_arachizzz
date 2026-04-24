@@ -924,56 +924,7 @@ export default function InstructorAsistencia() {
                 </div>
               )}
             </div>
-<<<<<<< HEAD
-          )}
-
-          {/* Historial reciente */}
-          {closedSessions.length > 0 && (
-            <div className="card dark:bg-gray-900 dark:border-gray-800">
-              <h2 className="font-bold text-gray-900 dark:text-white mb-4">Sesiones Anteriores</h2>
-              <div className="space-y-2">
-                {closedSessions.slice(0, 5).map(s => {
-                  const p = s.registros?.filter(r => r.presente).length || 0;
-                  const t = s.registros?.length || 0;
-                  const pct = t > 0 ? Math.round((p / t) * 100) : 0;
-                  return (
-                    <div key={s.id} className="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-gray-800">
-                      <div>
-                        <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{s.fecha}</p>
-                        <p className="text-xs text-gray-400">{s.instructor?.fullName}</p>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <button onClick={() => exportSession(s.id, s.fecha)} className="btn-icon text-[#34A853] hover:bg-green-50" title="Exportar Sesión">
-                          <Download size={15}/>
-                        </button>
-                        <div className="w-24 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                          <div className="h-full bg-[#34A853] rounded-full transition-all" style={{ width: `${pct}%` }}/>
-                        </div>
-                        <span className="text-sm font-bold text-gray-700 dark:text-gray-300 tabular-nums w-12 text-right">{p}/{t}</span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {!loading && materias.length === 0 && (
-            <div className="card dark:bg-gray-900">
-              <EmptyState icon={<BookOpen size={32}/>} title="Sin materias" description="Crea materias en tus fichas para iniciar sesiones." />
-            </div>
-          )}
-
-          {loading && (
-            <div className="card dark:bg-gray-900 animate-pulse">
-              <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-1/3 mb-4" />
-              <div className="space-y-3">
-                <div className="h-16 bg-gray-100 dark:bg-gray-800 rounded-xl" />
-                <div className="h-16 bg-gray-100 dark:bg-gray-800 rounded-xl" />
-                <div className="h-16 bg-gray-100 dark:bg-gray-800 rounded-xl" />
-              </div>
-            </div>
-          )}
+          </div>
         </>
       )}
 
