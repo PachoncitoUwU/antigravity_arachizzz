@@ -296,7 +296,7 @@ export default function InstructorAsistencia() {
   };
 
   // ─── Datos para gráficas ───────────────────────────────────────────────────
-  const closedSessions = sessions.filter(s => !s.activa);
+  const closedSessions = sessions?.filter(s => !s.activa) || [];
 
   const barData = closedSessions.slice(0, 8).reverse().map((s, i) => ({
     name: s.fecha,
