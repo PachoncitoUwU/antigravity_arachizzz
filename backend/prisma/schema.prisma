@@ -37,6 +37,7 @@ model User {
   wordleScore     WordleScore?
   fichasApr       Ficha[]              @relation("Aprendices")
   materiasEvitadas MateriaEvitada[]
+  respuestasRapidas RespuestaRapida[]  @relation("RespuestasRapidas")
 }
 
 model Ficha {
@@ -255,4 +256,15 @@ model SkinOrder {
 
   @@index([userId])
   @@index([externalId])
+}
+
+model RespuestaRapida {
+  id           String   @id @default(cuid())
+  instructorId String
+  texto        String
+  orden        Int
+  createdAt    DateTime @default(now())
+  instructor   User     @relation("RespuestasRapidas", fields: [instructorId], references: [id], onDelete: Cascade)
+
+  @@index([instructorId])
 }

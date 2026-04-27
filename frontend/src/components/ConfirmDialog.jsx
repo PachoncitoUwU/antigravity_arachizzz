@@ -34,12 +34,11 @@ export default function ConfirmDialog({ open, onClose, onConfirm, title, message
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '16px',
         zIndex: 9999
       }}
       onClick={onClose}
     >
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 relative" onClick={e => e.stopPropagation()}>
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 relative mx-4" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-bold text-gray-900">{title}</h2>
           <button onClick={onClose} className="btn-icon text-gray-400 hover:bg-gray-100">

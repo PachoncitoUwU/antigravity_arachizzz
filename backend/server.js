@@ -23,6 +23,7 @@ const materiaEvitadaRoutes = require('./routes/materiaEvitada');
 const qrRoutes     = require('./routes/qrRoutes');
 const passwordResetRoutes = require('./routes/passwordResetRoutes');
 const hardwareRoutes = require('./routes/hardwareRoutes');
+const respuestaRapidaRoutes = require('./routes/respuestaRapidaRoutes');
 const SerialService = require('./utils/serialService');
 
 const app = express();
@@ -83,6 +84,7 @@ app.use('/api', materiaEvitadaRoutes);
 app.use('/api/qr',     qrRoutes);
 app.use('/api/password', passwordResetRoutes);
 app.use('/api/hardware', hardwareRoutes);
+app.use('/api/respuestas-rapidas', respuestaRapidaRoutes);
 
 const serialService = new SerialService(io);
 app.set('serialService', serialService);
