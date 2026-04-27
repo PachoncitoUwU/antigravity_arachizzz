@@ -12,5 +12,6 @@ const hardwareAuth = (req, res, next) => {
 };
 
 router.post('/event', hardwareAuth, hardwareController.handleEvent);
+router.get('/commands', hardwareAuth, hardwareController.getCommands);
 
 module.exports = router;

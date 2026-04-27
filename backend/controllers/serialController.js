@@ -32,17 +32,24 @@ exports.disconnectPort = (req, res) => {
 };
 
 exports.startEnrollFinger = async (req, res) => {
-  const { id } = req.body;
+  const { id, mode } = req.body; // mode puede ser 'usb' o 'wifi'
   if (!id) return res.status(400).json({ error: 'Id de usuario (entero) es requerido' });
 
   try {
-    const serialService = req.app.get('serialService');
-    // Envía el comando al Arduino para prepararse para enrolar una huella en la ranura ID
-    const sent = serialService.sendCommand(`ENROLL ${id}`);
-    if (sent) {
-      res.json({ success: true, message: `Petición de enrolamiento enviada al Arduino para el ID ${id}` });
+    if (mode === 'wifi') {
+      // Agregar comando a la cola para que el ESP lo consulte
+      const hardwareController = require('./hardwareController');
+      hardwareController.queueCommand(`ENROLL ${id}`);
+      res.json({ success: true, message: `Comando de enrolamiento enviado a la cola WiFi para ID ${id}` });
     } else {
-      res.status(400).json({ error: 'No hay dispositivo conectado' });
+      // Modo USB tradicional
+      const serialService = req.app.get('serialService');
+      const sent = serialService.sendCommand(`ENROLL ${id}`);
+      if (sent) {
+        res.json({ success: true, message: `Petición de enrolamiento enviada al Arduino para el ID ${id}` });
+      } else {
+        res.status(400).json({ error: 'No hay dispositivo conectado' });
+      }
     }
   } catch (error) {
      res.status(500).json({ error: 'Error al procesar petición' });

@@ -1,6 +1,9 @@
 // Recibe eventos del ESP8266 y los emite por Socket.IO
 // igual que serialService.handleData() pero via HTTP
 
+// Cola de comandos pendientes para el ESP8266
+let commandQueue = [];
+
 exports.handleEvent = (req, res) => {
   const { type, payload } = req.body;
   const io = req.app.get('io');
@@ -24,4 +27,19 @@ exports.handleEvent = (req, res) => {
   }
 
   res.json({ success: true });
+};
+
+// El ESP consulta esta ruta cada 2 segundos para ver si hay comandos
+exports.getCommands = (req, res) => {
+  if (commandQueue.length > 0) {
+    const command = commandQueue.shift(); // saca el primero
+    res.json({ command });
+  } else {
+    res.json({ command: null });
+  }
+};
+
+// Agregar comando a la cola (llamado desde serialController)
+exports.queueCommand = (command) => {
+  commandQueue.push(command);
 };

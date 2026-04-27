@@ -12,12 +12,11 @@ const char* WIFI_SSID     = "Famila_Pachon";
 const char* WIFI_PASSWORD = "Familiapachon875";
 
 // --- BACKEND URLs ---
-const char* URL_RENDER = "https://bakendarachizpriv.onrender.com/api/hardware/event";
-const char* URL_LOCAL  = "http://192.168.X.X:3000/api/hardware/event"; // Cambia X.X por tu IP local
-const char* API_KEY    = "arachiz-esp-2024";
-
-// --- PIN SWITCH (D1 = GPIO5) ---
-#define PIN_SWITCH 5
+const char* URL_RENDER_EVENT = "https://arachiz-backend.onrender.com/api/hardware/event";
+const char* URL_RENDER_CMD   = "https://arachiz-backend.onrender.com/api/hardware/commands";
+const char* URL_LOCAL_EVENT  = "http://192.168.X.X:3000/api/hardware/event";
+const char* URL_LOCAL_CMD    = "http://192.168.X.X:3000/api/hardware/commands";
+const char* API_KEY          = "arachiz-esp-2024";
 
 // --- PANTALLA OLED ---
 #define SCREEN_WIDTH 128
@@ -42,10 +41,6 @@ void mostrarMensaje(String l1, String l2 = "", String l3 = "") {
   display.display();
 }
 
-bool modoOnline() {
-  return digitalRead(PIN_SWITCH) == HIGH;
-}
-
 void conectarWifi() {
   mostrarMensaje("Conectando", "WiFi...", WIFI_SSID);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
@@ -62,11 +57,10 @@ void conectarWifi() {
   }
 }
 
-bool enviarEvento(String type, String payload) {
+bool enviarEvento(String type, String payload, bool online) {
   if (WiFi.status() != WL_CONNECTED) return false;
 
-  bool online = modoOnline();
-  String url = online ? URL_RENDER : URL_LOCAL;
+  String url = online ? URL_RENDER_EVENT : URL_LOCAL_EVENT;
 
   StaticJsonDocument<128> doc;
   doc["type"] = type;
@@ -76,19 +70,18 @@ bool enviarEvento(String type, String payload) {
 
   bool ok = false;
   if (online) {
-    // HTTPS para Render
     WiFiClientSecure client;
-    client.setInsecure(); // Sin verificar certificado (suficiente para este uso)
+    client.setInsecure();
     HTTPClient http;
     http.begin(client, url);
     http.addHeader("Content-Type", "application/json");
     http.addHeader("x-hardware-key", API_KEY);
+    http.setTimeout(10000);
     int code = http.POST(body);
     ok = (code == 200);
     Serial.println("POST Render -> " + String(code));
     http.end();
   } else {
-    // HTTP para local
     WiFiClient client;
     HTTPClient http;
     http.begin(client, url);
@@ -102,10 +95,36 @@ bool enviarEvento(String type, String payload) {
   return ok;
 }
 
+void consultarComandos() {
+  if (WiFi.status() != WL_CONNECTED) return;
+
+  WiFiClientSecure client;
+  client.setInsecure();
+  HTTPClient http;
+  http.begin(client, URL_RENDER_CMD);
+  http.addHeader("x-hardware-key", API_KEY);
+  http.setTimeout(5000);
+  
+  int code = http.GET();
+  if (code == 200) {
+    String payload = http.getString();
+    StaticJsonDocument<128> doc;
+    deserializeJson(doc, payload);
+    const char* cmd = doc["command"];
+    
+    if (cmd != nullptr && strlen(cmd) > 0) {
+      Serial.println("Comando recibido: " + String(cmd));
+      arduinoSerial.println(cmd); // Enviar al Arduino
+      mostrarMensaje("Comando", cmd);
+      delay(500);
+    }
+  }
+  http.end();
+}
+
 void setup() {
   Serial.begin(115200);
   arduinoSerial.begin(9600);
-  pinMode(PIN_SWITCH, INPUT_PULLDOWN_16); // D1
 
   Wire.begin(OLED_SDA, OLED_SCL);
   if (!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
@@ -116,13 +135,20 @@ void setup() {
   delay(500);
   conectarWifi();
 
-  String modo = modoOnline() ? "Render (online)" : "Local";
-  mostrarMensaje("ARACHIZ listo", modo, "Esperando...");
+  mostrarMensaje("ARACHIZ listo", "Esperando...");
 }
 
 void loop() {
   if (WiFi.status() != WL_CONNECTED) conectarWifi();
 
+  // Consultar comandos pendientes cada 2 segundos
+  static unsigned long lastCheck = 0;
+  if (millis() - lastCheck > 2000) {
+    lastCheck = millis();
+    consultarComandos();
+  }
+
+  // Leer mensajes del Arduino
   if (arduinoSerial.available()) {
     String msg = arduinoSerial.readStringUntil('\n');
     msg.trim();
@@ -130,31 +156,34 @@ void loop() {
 
     Serial.println("Arduino: " + msg);
 
+    // Detectar modo desde el prefijo que manda el Arduino
+    bool online = msg.startsWith("MODO:RENDER|");
+    if (online) msg = msg.substring(12);
+
     if (msg.startsWith("READ_NFC:")) {
       String uid = msg.substring(9); uid.trim();
       mostrarMensaje("NFC leido", uid, "Enviando...");
-      bool ok = enviarEvento("nfc", uid);
+      bool ok = enviarEvento("nfc", uid, online);
       mostrarMensaje("NFC leido", uid, ok ? "Registrado!" : "Error envio");
 
     } else if (msg.startsWith("READ_FINGER:")) {
       String id = msg.substring(12); id.trim();
       mostrarMensaje("Huella leida", "ID: " + id, "Enviando...");
-      bool ok = enviarEvento("finger", id);
+      bool ok = enviarEvento("finger", id, online);
       mostrarMensaje("Huella leida", "ID: " + id, ok ? "Registrado!" : "Error envio");
 
     } else if (msg.startsWith("ENROLL_SUCCESS:")) {
       String id = msg.substring(15); id.trim();
       mostrarMensaje("Huella", "Enrolada OK", "ID: " + id);
-      enviarEvento("enroll_success", id);
+      enviarEvento("enroll_success", id, online);
 
     } else if (msg.startsWith("ENROLL_ERROR:")) {
       String err = msg.substring(13); err.trim();
       mostrarMensaje("Error enrol.", err);
-      enviarEvento("enroll_error", err);
+      enviarEvento("enroll_error", err, online);
 
     } else if (msg == "TEST_PING") {
-      String modo = modoOnline() ? "Render" : "Local";
-      mostrarMensaje("Arduino OK", "Modo: " + modo);
+      mostrarMensaje("Arduino OK", "Switch OFF", "Modo USB");
     }
   }
 }
