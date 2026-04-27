@@ -5,6 +5,7 @@ import fetchApi from '../../services/api';
 import PageHeader from '../../components/PageHeader';
 import Modal from '../../components/Modal';
 import MateriaInfoModal from '../../components/MateriaInfoModal';
+import ConfirmDialog from '../../components/ConfirmDialog';
 import EmptyState from '../../components/EmptyState';
 import { useToast } from '../../context/ToastContext';
 import { BookOpen, Plus } from 'lucide-react';
@@ -30,6 +31,7 @@ export default function InstructorMaterias() {
   const [error, setError] = useState('');
   const [selectedMateria, setSelectedMateria] = useState(null);
   const [infoModalOpen, setInfoModalOpen] = useState(false);
+  const [confirmDialog, setConfirmDialog] = useState({ open: false, action: null });
 
   const load = async () => {
     try {
@@ -60,14 +62,18 @@ export default function InstructorMaterias() {
   };
 
   const handleDelete = async (id) => {
-    if (!confirm('¿Eliminar esta materia? Se eliminarán también sus sesiones de asistencia.')) return;
-    try {
-      await fetchApi(`/materias/${id}`, { method: 'DELETE' });
-      showToast('Materia eliminada', 'success');
-      setInfoModalOpen(false);
-      setSelectedMateria(null);
-      load();
-    } catch (err) { showToast(err.message, 'error'); }
+    setConfirmDialog({
+      open: true,
+      action: async () => {
+        try {
+          await fetchApi(`/materias/${id}`, { method: 'DELETE' });
+          showToast('Materia eliminada', 'success');
+          setInfoModalOpen(false);
+          setSelectedMateria(null);
+          load();
+        } catch (err) { showToast(err.message, 'error'); }
+      }
+    });
   };
 
   const handleMateriaClick = (materia, ficha) => {
@@ -214,6 +220,17 @@ export default function InstructorMaterias() {
         }
         onUpdate={handleUpdateMateria}
         onDelete={handleDeleteMateria}
+      />
+
+      <ConfirmDialog
+        open={confirmDialog.open}
+        onClose={() => setConfirmDialog({ open: false, action: null })}
+        onConfirm={confirmDialog.action}
+        title="Eliminar Materia"
+        message="¿Eliminar esta materia? Se eliminarán también sus sesiones de asistencia."
+        confirmText="Eliminar"
+        cancelText="Cancelar"
+        danger={true}
       />
     </div>
   );

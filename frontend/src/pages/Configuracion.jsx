@@ -3,6 +3,7 @@ import { AuthContext } from '../context/AuthContext';
 import { useSettings } from '../context/SettingsContext';
 import { useToast } from '../context/ToastContext';
 import PageHeader from '../components/PageHeader';
+import ConfirmDialog from '../components/ConfirmDialog';
 import SerialConnect from '../components/SerialConnect';
 import { Moon, Sun, Globe, Bell, User, Shield, Palette, Save, Camera, Loader, Usb } from 'lucide-react';
 import TowerStack   from '../games/TowerStack';
@@ -1556,14 +1557,18 @@ export default function Configuracion() {
   };
 
   const handleClearFingerprints = async () => {
-    if (!confirm('¿Borrar TODA la base de datos del sensor de huellas?')) return;
-    try {
-      const res  = await fetch(`${API_BASE}/api/serial/clear-fingerprints`, { method:'POST', headers:{ Authorization:`Bearer ${localStorage.getItem('token')}` } });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      showToast(data.message || 'Comando enviado al sensor', 'success');
-      setShowClear(false);
-    } catch (err) { showToast(err.message, 'error'); }
+    setConfirmDialog({
+      open: true,
+      action: async () => {
+        try {
+          const res  = await fetch(`${API_BASE}/api/serial/clear-fingerprints`, { method:'POST', headers:{ Authorization:`Bearer ${localStorage.getItem('token')}` } });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error);
+          showToast(data.message || 'Comando enviado al sensor', 'success');
+          setShowClear(false);
+        } catch (err) { showToast(err.message, 'error'); }
+      }
+    });
   };
 
   const initials  = user?.fullName ? user.fullName.split(' ').map(n=>n[0]).slice(0,2).join('').toUpperCase() : '?';

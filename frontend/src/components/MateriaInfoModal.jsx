@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import Modal from './Modal';
+import ConfirmDialog from './ConfirmDialog';
 import fetchApi from '../services/api';
 import { BookOpen, User, Clock, Edit2, Trash2, Loader } from 'lucide-react';
 
@@ -19,6 +20,7 @@ export default function MateriaInfoModal({
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState('');
+  const [confirmDialog, setConfirmDialog] = useState({ open: false, action: null });
 
   if (!materia) return null;
 
@@ -69,26 +71,27 @@ export default function MateriaInfoModal({
   };
 
   const handleDelete = async () => {
-    if (!confirm(`¿Estás seguro de eliminar la materia "${materia.nombre}"? Esta acción no se puede deshacer.`)) {
-      return;
-    }
+    setConfirmDialog({
+      open: true,
+      action: async () => {
+        try {
+          setDeleting(true);
+          setError('');
 
-    try {
-      setDeleting(true);
-      setError('');
+          await fetchApi(`/materias/${materia.id}`, {
+            method: 'DELETE'
+          });
 
-      await fetchApi(`/materias/${materia.id}`, {
-        method: 'DELETE'
-      });
-
-      if (onDelete) {
-        onDelete();
+          if (onDelete) {
+            onDelete();
+          }
+          onClose();
+        } catch (err) {
+          setError(err.message || 'Error al eliminar la materia');
+          setDeleting(false);
+        }
       }
-      onClose();
-    } catch (err) {
-      setError(err.message || 'Error al eliminar la materia');
-      setDeleting(false);
-    }
+    });
   };
 
   // Formatear horarios
@@ -261,6 +264,17 @@ export default function MateriaInfoModal({
           </>
         )}
       </div>
+
+      <ConfirmDialog
+        open={confirmDialog.open}
+        onClose={() => setConfirmDialog({ open: false, action: null })}
+        onConfirm={confirmDialog.action}
+        title="Eliminar Materia"
+        message={`¿Estás seguro de eliminar la materia "${materia.nombre}"? Esta acción no se puede deshacer.`}
+        confirmText="Eliminar"
+        cancelText="Cancelar"
+        danger={true}
+      />
     </Modal>
   );
 }

@@ -4,6 +4,7 @@ import { AuthContext } from '../../context/AuthContext';
 import fetchApi from '../../services/api';
 import { useToast } from '../../context/ToastContext';
 import Modal from '../../components/Modal';
+import ConfirmDialog from '../../components/ConfirmDialog';
 import EnrollModal from '../../components/EnrollModal';
 import AprendizPerfilModal from '../../components/AprendizPerfilModal';
 import MateriaInfoModal from '../../components/MateriaInfoModal';
@@ -45,6 +46,7 @@ export default function FichaDetalle() {
   const [modalPerfil, setModalPerfil] = useState(false);
   const [modalMateriaInfo, setModalMateriaInfo] = useState(false);
   const [selectedMateria, setSelectedMateria] = useState(null);
+  const [confirmDialog, setConfirmDialog] = useState({ open: false, action: null, data: null });
   
   // Estados para pestañas y búsqueda
   const [activeTab, setActiveTab] = useState('aprendices'); // 'aprendices' | 'materias'
@@ -85,14 +87,19 @@ export default function FichaDetalle() {
   };
 
   const handleRegenerate = async () => {
-    if (!confirm('¿Regenerar el código? El anterior dejará de funcionar.')) return;
-    try {
-      await fetchApi(`/fichas/${id}/regenerate-code`, { method: 'POST' });
-      showToast('Código regenerado', 'success');
-      loadFicha();
-    } catch (err) {
-      showToast(err.message, 'error');
-    }
+    setConfirmDialog({
+      open: true,
+      action: async () => {
+        try {
+          await fetchApi(`/fichas/${id}/regenerate-code`, { method: 'POST' });
+          showToast('Código regenerado', 'success');
+          loadFicha();
+        } catch (err) {
+          showToast(err.message, 'error');
+        }
+      },
+      data: { type: 'regenerate' }
+    });
   };
 
   const handleExport = async () => {
@@ -122,14 +129,19 @@ export default function FichaDetalle() {
   };
 
   const handleRemoveAprendiz = async (aprendizId) => {
-    if (!confirm('¿Eliminar este aprendiz de la ficha?')) return;
-    try {
-      await fetchApi(`/fichas/${id}/aprendices/${aprendizId}`, { method: 'DELETE' });
-      showToast('Aprendiz eliminado', 'success');
-      loadFicha();
-    } catch (err) {
-      showToast(err.message, 'error');
-    }
+    setConfirmDialog({
+      open: true,
+      action: async () => {
+        try {
+          await fetchApi(`/fichas/${id}/aprendices/${aprendizId}`, { method: 'DELETE' });
+          showToast('Aprendiz eliminado', 'success');
+          loadFicha();
+        } catch (err) {
+          showToast(err.message, 'error');
+        }
+      },
+      data: { type: 'remove', aprendizId }
+    });
   };
 
   const handleCreateMateria = async (e) => {
@@ -1071,6 +1083,19 @@ export default function FichaDetalle() {
           onDelete={handleMateriaDelete}
         />
       )}
+
+      <ConfirmDialog
+        open={confirmDialog.open}
+        onClose={() => setConfirmDialog({ open: false, action: null, data: null })}
+        onConfirm={confirmDialog.action}
+        title={confirmDialog.data?.type === 'regenerate' ? "Regenerar Código" : "Eliminar Aprendiz"}
+        message={confirmDialog.data?.type === 'regenerate' 
+          ? "¿Regenerar el código? El anterior dejará de funcionar."
+          : "¿Eliminar este aprendiz de la ficha? Esta acción no se puede deshacer."}
+        confirmText={confirmDialog.data?.type === 'regenerate' ? "Regenerar" : "Eliminar"}
+        cancelText="Cancelar"
+        danger={true}
+      />
     </div>
   );
 }

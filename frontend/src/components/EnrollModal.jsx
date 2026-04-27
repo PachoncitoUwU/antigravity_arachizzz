@@ -1,16 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import Modal from './Modal';
 import FaceCapture from './FaceCapture';
+import ConfirmDialog from './ConfirmDialog';
 import { socket } from '../services/socket';
 import fetchApi from '../services/api';
 import { Fingerprint, CreditCard, CheckCircle2, AlertCircle, Loader2, ScanFace, Trash2 } from 'lucide-react';
 import { descriptorToArray } from '../utils/faceApi';
 
 export default function EnrollModal({ open, onClose, aprendiz }) {
-  const [mode, setMode] = useState(null); // 'nfc', 'fingerprint', 'face', or null
-  const [status, setStatus] = useState('idle'); // idle, waiting, success, error
+  const [mode, setMode] = useState(null);
+  const [status, setStatus] = useState('idle');
   const [message, setMessage] = useState('');
   const [hasFace, setHasFace] = useState(false);
+  const [confirmDialog, setConfirmDialog] = useState({ open: false, action: null, data: null });
 
   // Reiniciar estado
   useEffect(() => {
@@ -121,29 +123,43 @@ export default function EnrollModal({ open, onClose, aprendiz }) {
   };
 
   const removeFingerprint = async (id) => {
-    if (!confirm(`¿Estás seguro de eliminar la huella ${id}?`)) return;
-    try {
-      await fetchApi('/serial/finger', {
-        method: 'DELETE',
-        body: JSON.stringify({ userId: aprendiz.id, huellaId: id })
-      });
-      aprendiz.huellas = aprendiz.huellas.filter(h => h !== id);
-      setStatus('idle');
-      setMessage('');
-    } catch(err) {
-      alert(err.message);
-    }
+    setConfirmDialog({
+      open: true,
+      action: async () => {
+        try {
+          await fetchApi('/serial/finger', {
+            method: 'DELETE',
+            body: JSON.stringify({ userId: aprendiz.id, huellaId: id })
+          });
+          aprendiz.huellas = aprendiz.huellas.filter(h => h !== id);
+          setStatus('success');
+          setMessage(`Huella ${id} eliminada correctamente`);
+        } catch(err) {
+          setStatus('error');
+          setMessage(err.message || 'Error al eliminar huella');
+        }
+      },
+      data: { id }
+    });
   };
 
   const deleteFaceDescriptor = async () => {
-    if (!confirm('¿Eliminar el reconocimiento facial de este aprendiz?')) return;
-    try {
-      await fetchApi(`/auth/face-descriptor-for/${aprendiz.id}`, { method: 'DELETE' });
-      setHasFace(false);
-      setMessage('Reconocimiento facial eliminado');
-    } catch (err) {
-      alert(err.message);
-    }
+    setConfirmDialog({
+      open: true,
+      action: async () => {
+        try {
+          await fetchApi(`/auth/face-descriptor-for/${aprendiz.id}`, { method: 'DELETE' });
+          setHasFace(false);
+          aprendiz.faceDescriptor = null;
+          setMessage('Reconocimiento facial eliminado');
+          setStatus('success');
+        } catch (err) {
+          setStatus('error');
+          setMessage(err.message || 'Error al eliminar reconocimiento facial');
+        }
+      },
+      data: null
+    });
   };
 
   return (
@@ -173,7 +189,7 @@ export default function EnrollModal({ open, onClose, aprendiz }) {
                   {aprendiz.huellas.map(hId => (
                     <div key={hId} className="flex justify-between items-center bg-white dark:bg-gray-700 px-3 py-1 border border-gray-200 dark:border-gray-600 rounded">
                       <span className="font-mono text-purple-600 dark:text-purple-400">ID: {hId}</span>
-                      <button onClick={() => removeFingerprint(hId)} className="text-red-500 hover:text-red-700 text-xs font-bold px-2 py-1 bg-red-50 dark:bg-red-900/20 rounded">Eliminar</button>
+                      <button onClick={() => removeFingerprint(hId)} className="text-red-500 hover:text-red-700 text-xs font-bold px-2 py-1 bg-red-50 dark:bg-red-900/20 rounded hover:bg-red-100 transition-colors">Eliminar</button>
                     </div>
                   ))}
                 </div>
@@ -274,6 +290,19 @@ export default function EnrollModal({ open, onClose, aprendiz }) {
           </button>
         )}
       </div>
+
+      <ConfirmDialog
+        open={confirmDialog.open}
+        onClose={() => setConfirmDialog({ open: false, action: null, data: null })}
+        onConfirm={confirmDialog.action}
+        title={confirmDialog.data?.id ? "Eliminar Huella" : "Eliminar Reconocimiento Facial"}
+        message={confirmDialog.data?.id 
+          ? `¿Estás seguro de eliminar la huella ${confirmDialog.data.id}? Esta acción no se puede deshacer.`
+          : "¿Eliminar el reconocimiento facial de este aprendiz? Esta acción no se puede deshacer."}
+        confirmText="Eliminar"
+        cancelText="Cancelar"
+        danger={true}
+      />
     </Modal>
   );
 }

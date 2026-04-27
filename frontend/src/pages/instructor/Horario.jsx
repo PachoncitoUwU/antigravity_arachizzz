@@ -7,6 +7,7 @@ import fetchApi from '../../services/api';
 import { AuthContext } from '../../context/AuthContext';
 import PageHeader from '../../components/PageHeader';
 import Modal from '../../components/Modal';
+import ConfirmDialog from '../../components/ConfirmDialog';
 import EmptyState from '../../components/EmptyState';
 import { useToast } from '../../context/ToastContext';
 import { Calendar, Plus, Trash2, Clock, Edit2, GripVertical, CheckCircle2, Check } from 'lucide-react';
@@ -192,6 +193,7 @@ export default function InstructorHorario() {
   const [modoEditar, setModoEditar] = useState(false);
   const [modoEliminar, setModoEliminar] = useState(false);
   const [horariosSeleccionados, setHorariosSeleccionados] = useState([]);
+  const [confirmDialog, setConfirmDialog] = useState({ open: false, action: null, data: null });
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
@@ -244,19 +246,23 @@ export default function InstructorHorario() {
       return;
     }
 
-    if (!confirm(`¿Eliminar ${horariosSeleccionados.length} clase(s) del horario?`)) return;
-
-    try {
-      await Promise.all(
-        horariosSeleccionados.map(id => fetchApi(`/horarios/${id}`, { method: 'DELETE' }))
-      );
-      setHorarios(prev => prev.filter(h => !horariosSeleccionados.includes(h.id)));
-      setHorariosSeleccionados([]);
-      setModoEliminar(false);
-      showToast(`${horariosSeleccionados.length} clase(s) eliminada(s)`, 'success');
-    } catch (err) {
-      showToast(err.message, 'error');
-    }
+    setConfirmDialog({
+      open: true,
+      action: async () => {
+        try {
+          await Promise.all(
+            horariosSeleccionados.map(id => fetchApi(`/horarios/${id}`, { method: 'DELETE' }))
+          );
+          setHorarios(prev => prev.filter(h => !horariosSeleccionados.includes(h.id)));
+          setHorariosSeleccionados([]);
+          setModoEliminar(false);
+          showToast(`${horariosSeleccionados.length} clase(s) eliminada(s)`, 'success');
+        } catch (err) {
+          showToast(err.message, 'error');
+        }
+      },
+      data: { count: horariosSeleccionados.length }
+    });
   };
 
   const cancelarModoEliminar = () => {
@@ -626,6 +632,17 @@ export default function InstructorHorario() {
           </div>
         </form>
       </Modal>
+
+      <ConfirmDialog
+        open={confirmDialog.open}
+        onClose={() => setConfirmDialog({ open: false, action: null, data: null })}
+        onConfirm={confirmDialog.action}
+        title="Eliminar Clases"
+        message={`¿Eliminar ${confirmDialog.data?.count || 0} clase(s) del horario? Esta acción no se puede deshacer.`}
+        confirmText="Eliminar"
+        cancelText="Cancelar"
+        danger={true}
+      />
     </div>
   );
 }

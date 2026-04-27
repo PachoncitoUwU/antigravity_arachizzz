@@ -4,6 +4,7 @@ import { AuthContext } from '../../context/AuthContext';
 import fetchApi from '../../services/api';
 import PageHeader from '../../components/PageHeader';
 import Modal from '../../components/Modal';
+import ConfirmDialog from '../../components/ConfirmDialog';
 import EmptyState from '../../components/EmptyState';
 import EnrollModal from '../../components/EnrollModal';
 import { useToast } from '../../context/ToastContext';
@@ -164,6 +165,7 @@ export default function InstructorFichas() {
   const [joinCode, setJoinCode]   = useState('');
   const [saving, setSaving]       = useState(false);
   const [error, setError]         = useState('');
+  const [confirmDialog, setConfirmDialog] = useState({ open: false, action: null, data: null });
 
   const load = useCallback(async () => {
     try {
@@ -223,11 +225,17 @@ export default function InstructorFichas() {
   };
 
   const handleRegenerate = async (id) => {
-    if (!confirm('¿Regenerar el código? El anterior dejará de funcionar.')) return;
-    try {
-      await fetchApi(`/fichas/${id}/regenerate-code`, { method: 'POST' });
-      showToast('Código regenerado', 'success'); load();
-    } catch (err) { showToast(err.message, 'error'); }
+    setConfirmDialog({
+      open: true,
+      action: async () => {
+        try {
+          await fetchApi(`/fichas/${id}/regenerate-code`, { method: 'POST' });
+          showToast('Código regenerado', 'success'); 
+          load();
+        } catch (err) { showToast(err.message, 'error'); }
+      },
+      data: { id }
+    });
   };
 
   const handleViewDetails = (fichaId) => {
@@ -302,6 +310,17 @@ export default function InstructorFichas() {
           </div>
         </form>
       </Modal>
+
+      <ConfirmDialog
+        open={confirmDialog.open}
+        onClose={() => setConfirmDialog({ open: false, action: null, data: null })}
+        onConfirm={confirmDialog.action}
+        title="Regenerar Código"
+        message="¿Regenerar el código? El anterior dejará de funcionar."
+        confirmText="Regenerar"
+        cancelText="Cancelar"
+        danger={true}
+      />
     </div>
   );
 }
