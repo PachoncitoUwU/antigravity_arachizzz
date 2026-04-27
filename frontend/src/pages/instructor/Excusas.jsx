@@ -34,11 +34,14 @@ export default function InstructorExcusas() {
   
   // Respuestas rápidas personalizadas
   const [respuestasRapidas, setRespuestasRapidas] = useState([]);
+  const [respuestasOriginales, setRespuestasOriginales] = useState([]); // Para comparar cambios
   const [modalRespuestas, setModalRespuestas] = useState(false);
   const [editandoRespuesta, setEditandoRespuesta] = useState(null);
   const [nuevaRespuesta, setNuevaRespuesta] = useState('');
   const [draggedIndex, setDraggedIndex] = useState(null);
   const [confirmRestaurar, setConfirmRestaurar] = useState(false);
+  const [guardandoRespuestas, setGuardandoRespuestas] = useState(false);
+  const [confirmSalir, setConfirmSalir] = useState(false);
   
   // Filtros
   const [filtroEstado, setFiltroEstado] = useState('Todas');
@@ -56,20 +59,34 @@ export default function InstructorExcusas() {
     }
   };
 
-  // Cargar respuestas rápidas desde localStorage
+  // Helper para truncar texto largo
+  const truncarTexto = (texto, maxLength = 80) => {
+    if (texto.length <= maxLength) return texto;
+    return texto.substring(0, maxLength) + '...';
+  };
+
+  // Cargar respuestas rápidas desde la API
   useEffect(() => {
-    const saved = localStorage.getItem('respuestasRapidas');
-    if (saved) {
-      setRespuestasRapidas(JSON.parse(saved));
-    } else {
-      setRespuestasRapidas(DEFAULT_RESPUESTAS_RAPIDAS);
-    }
+    loadRespuestasRapidas();
   }, []);
 
-  // Guardar respuestas rápidas en localStorage
-  const guardarRespuestasRapidas = (nuevas) => {
-    setRespuestasRapidas(nuevas);
-    localStorage.setItem('respuestasRapidas', JSON.stringify(nuevas));
+  const loadRespuestasRapidas = async () => {
+    try {
+      const data = await fetchApi('/respuestas-rapidas');
+      if (data.respuestas && data.respuestas.length > 0) {
+        const textos = data.respuestas.map(r => r.texto);
+        setRespuestasRapidas(textos);
+        setRespuestasOriginales(textos); // Guardar copia original
+      } else {
+        // Si no tiene respuestas, crear las por defecto
+        await restaurarDefecto();
+      }
+    } catch (err) {
+      console.error('Error al cargar respuestas rápidas:', err);
+      // Si hay error, usar las por defecto localmente
+      setRespuestasRapidas(DEFAULT_RESPUESTAS_RAPIDAS);
+      setRespuestasOriginales(DEFAULT_RESPUESTAS_RAPIDAS);
+    }
   };
 
   const agregarRespuesta = () => {
@@ -77,31 +94,31 @@ export default function InstructorExcusas() {
       showToast('Escribe un mensaje antes de agregar', 'warning');
       return;
     }
-    const nuevas = [...respuestasRapidas, nuevaRespuesta.trim()];
-    guardarRespuestasRapidas(nuevas);
+    
+    setRespuestasRapidas([...respuestasRapidas, nuevaRespuesta.trim()]);
     setNuevaRespuesta('');
-    showToast('Respuesta rápida agregada', 'success');
   };
 
   const eliminarRespuesta = (index) => {
     const nuevas = respuestasRapidas.filter((_, i) => i !== index);
-    guardarRespuestasRapidas(nuevas);
-    showToast('Respuesta rápida eliminada', 'success');
+    setRespuestasRapidas(nuevas);
+    if (editandoRespuesta === index) {
+      setEditandoRespuesta(null);
+    }
   };
 
   const actualizarRespuesta = (index, texto) => {
     const nuevas = [...respuestasRapidas];
     nuevas[index] = texto;
-    guardarRespuestasRapidas(nuevas);
+    setRespuestasRapidas(nuevas);
     setEditandoRespuesta(null);
-    showToast('Respuesta rápida actualizada', 'success');
   };
 
   const moverRespuesta = (fromIndex, toIndex) => {
     const nuevas = [...respuestasRapidas];
     const [removed] = nuevas.splice(fromIndex, 1);
     nuevas.splice(toIndex, 0, removed);
-    guardarRespuestasRapidas(nuevas);
+    setRespuestasRapidas(nuevas);
   };
 
   const handleDragStart = (index) => {
@@ -119,10 +136,77 @@ export default function InstructorExcusas() {
     setDraggedIndex(null);
   };
 
-  const restaurarDefecto = () => {
-    guardarRespuestasRapidas(DEFAULT_RESPUESTAS_RAPIDAS);
-    setConfirmRestaurar(false);
-    showToast('Respuestas rápidas restauradas', 'success');
+  const restaurarDefecto = async () => {
+    try {
+      await fetchApi('/respuestas-rapidas/restaurar', {
+        method: 'POST'
+      });
+      setConfirmRestaurar(false);
+      await loadRespuestasRapidas();
+      showToast('Respuestas rápidas restauradas', 'success');
+    } catch (err) {
+      showToast('Error al restaurar respuestas: ' + err.message, 'error');
+    }
+  };
+
+  const guardarCambiosRespuestas = async () => {
+    setGuardandoRespuestas(true);
+    try {
+      // Obtener respuestas actuales de la API para tener los IDs
+      const data = await fetchApi('/respuestas-rapidas');
+      const respuestasDB = data.respuestas;
+      
+      // Estrategia simple: eliminar todas y recrear
+      // Esto evita problemas de sincronización y es más confiable
+      
+      // 1. Eliminar todas las respuestas existentes
+      for (const respuesta of respuestasDB) {
+        await fetchApi(`/respuestas-rapidas/${respuesta.id}`, { method: 'DELETE' });
+      }
+      
+      // 2. Crear todas las respuestas actuales con el orden correcto
+      for (let i = 0; i < respuestasRapidas.length; i++) {
+        await fetchApi('/respuestas-rapidas', {
+          method: 'POST',
+          body: JSON.stringify({ texto: respuestasRapidas[i] })
+        });
+      }
+      
+      await loadRespuestasRapidas();
+      setModalRespuestas(false);
+      setEditandoRespuesta(null);
+      showToast('Cambios guardados correctamente', 'success');
+    } catch (err) {
+      showToast('Error al guardar cambios: ' + err.message, 'error');
+    } finally {
+      setGuardandoRespuestas(false);
+    }
+  };
+
+  const cancelarCambiosRespuestas = () => {
+    setRespuestasRapidas([...respuestasOriginales]);
+    setModalRespuestas(false);
+    setEditandoRespuesta(null);
+    setNuevaRespuesta('');
+    setConfirmSalir(false);
+  };
+
+  const intentarCerrarModal = () => {
+    if (hayCambiosPendientes()) {
+      setConfirmSalir(true);
+    } else {
+      cancelarCambiosRespuestas();
+    }
+  };
+
+  const confirmarSalirSinGuardar = () => {
+    setConfirmSalir(false);
+    cancelarCambiosRespuestas();
+  };
+
+  const hayCambiosPendientes = () => {
+    if (respuestasRapidas.length !== respuestasOriginales.length) return true;
+    return respuestasRapidas.some((r, i) => r !== respuestasOriginales[i]);
   };
 
   useEffect(() => {
@@ -321,7 +405,7 @@ export default function InstructorExcusas() {
 
       {/* Modal responder/ver detalle */}
       <Modal open={!!selected} onClose={() => { setSelected(null); setEditMode(false); }} 
-        title={editMode ? "Editar Respuesta" : "Detalle de Excusa"} maxWidth="max-w-4xl">
+        title={editMode ? "Editar Respuesta" : "Detalle de Excusa"} maxWidth="max-w-3xl">
         {selected && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Columna izquierda: Detalles de la excusa */}
@@ -418,7 +502,7 @@ export default function InstructorExcusas() {
                       value="">
                       <option value="">Selecciona una respuesta rápida...</option>
                       {respuestasRapidas.map((r, i) => (
-                        <option key={i} value={r}>{r}</option>
+                        <option key={i} value={r}>{truncarTexto(r)}</option>
                       ))}
                     </select>
                   </div>
@@ -464,7 +548,7 @@ export default function InstructorExcusas() {
                           value="">
                           <option value="">Selecciona una respuesta rápida...</option>
                           {respuestasRapidas.map((r, i) => (
-                            <option key={i} value={r}>{r}</option>
+                            <option key={i} value={r}>{truncarTexto(r)}</option>
                           ))}
                         </select>
                       </div>
@@ -500,75 +584,65 @@ export default function InstructorExcusas() {
             <div className="lg:block hidden">
               <div className="card bg-gradient-to-br from-blue-50 to-indigo-50 sticky top-4">
                 <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                  <Calendar size={16}/> Calendario de Faltas
+                  <Calendar size={16}/> Fechas de Falta
                 </h3>
                 {(() => {
                   const fechasExcusa = safeJSONParse(selected.fechas, []);
                   if (fechasExcusa.length === 0) return <p className="text-sm text-gray-500">No hay fechas registradas</p>;
                   
-                  // Obtener el mes y año de la primera fecha
-                  const primeraFecha = new Date(fechasExcusa[0] + 'T00:00:00');
-                  const mes = primeraFecha.getMonth();
-                  const año = primeraFecha.getFullYear();
+                  // Ordenar fechas cronológicamente
+                  const fechasOrdenadas = [...fechasExcusa].sort((a, b) => new Date(a) - new Date(b));
                   
-                  // Obtener primer y último día del mes
-                  const primerDia = new Date(año, mes, 1);
-                  const ultimoDia = new Date(año, mes + 1, 0);
-                  
-                  // Día de la semana del primer día (0 = domingo)
-                  const primerDiaSemana = primerDia.getDay();
-                  
-                  // Crear array de días
-                  const dias = [];
-                  const totalDias = ultimoDia.getDate();
-                  
-                  // Agregar espacios vacíos antes del primer día
-                  for (let i = 0; i < primerDiaSemana; i++) {
-                    dias.push(null);
-                  }
-                  
-                  // Agregar todos los días del mes
-                  for (let dia = 1; dia <= totalDias; dia++) {
-                    dias.push(dia);
-                  }
-                  
-                  // Verificar si un día está en las fechas de excusa
-                  const esDiaExcusa = (dia) => {
-                    const fechaBuscar = `${año}-${String(mes + 1).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
-                    return fechasExcusa.includes(fechaBuscar);
-                  };
+                  // Agrupar por mes
+                  const fechasPorMes = {};
+                  fechasOrdenadas.forEach(fecha => {
+                    const date = new Date(fecha + 'T00:00:00');
+                    const mesAño = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+                    if (!fechasPorMes[mesAño]) {
+                      fechasPorMes[mesAño] = [];
+                    }
+                    fechasPorMes[mesAño].push(fecha);
+                  });
                   
                   const nombresMeses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-                  const nombresDias = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
+                  const nombresDias = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
                   
                   return (
-                    <div>
-                      <div className="text-center mb-3">
-                        <p className="font-bold text-gray-900">{nombresMeses[mes]} {año}</p>
-                      </div>
-                      <div className="grid grid-cols-7 gap-1 mb-2">
-                        {nombresDias.map((d, i) => (
-                          <div key={i} className="text-center text-xs font-semibold text-gray-600 py-1">
-                            {d}
+                    <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
+                      {Object.entries(fechasPorMes).map(([mesAño, fechas]) => {
+                        const [año, mes] = mesAño.split('-');
+                        const nombreMes = nombresMeses[parseInt(mes) - 1];
+                        
+                        return (
+                          <div key={mesAño} className="bg-white rounded-lg p-3">
+                            <p className="font-bold text-gray-900 mb-2">{nombreMes} {año}</p>
+                            <div className="space-y-1">
+                              {fechas.map((fecha, i) => {
+                                const date = new Date(fecha + 'T00:00:00');
+                                const dia = date.getDate();
+                                const diaSemana = nombresDias[date.getDay()];
+                                
+                                return (
+                                  <div key={i} className="flex items-center gap-2 p-2 bg-red-50 rounded-lg">
+                                    <div className="w-10 h-10 bg-red-500 text-white rounded-lg flex items-center justify-center font-bold">
+                                      {dia}
+                                    </div>
+                                    <div className="flex-1">
+                                      <p className="text-sm font-medium text-gray-900">{diaSemana}</p>
+                                      <p className="text-xs text-gray-500">{date.toLocaleDateString('es-CO')}</p>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
                           </div>
-                        ))}
-                      </div>
-                      <div className="grid grid-cols-7 gap-1">
-                        {dias.map((dia, i) => (
-                          <div key={i} className={`
-                            aspect-square flex items-center justify-center text-sm rounded-lg
-                            ${dia === null ? '' : esDiaExcusa(dia) 
-                              ? 'bg-red-500 text-white font-bold shadow-md' 
-                              : 'bg-white text-gray-700 hover:bg-gray-100'}
-                          `}>
-                            {dia}
-                          </div>
-                        ))}
-                      </div>
-                      <div className="mt-3 p-2 bg-white rounded-lg">
+                        );
+                      })}
+                      
+                      <div className="p-2 bg-white rounded-lg">
                         <p className="text-xs text-gray-600 flex items-center gap-2">
                           <span className="w-3 h-3 bg-red-500 rounded"></span>
-                          Días de falta justificada
+                          Total: {fechasExcusa.length} día{fechasExcusa.length !== 1 ? 's' : ''} de falta
                         </p>
                       </div>
                     </div>
@@ -593,7 +667,7 @@ export default function InstructorExcusas() {
       />
 
       {/* Modal gestión de respuestas rápidas */}
-      <Modal open={modalRespuestas} onClose={() => { setModalRespuestas(false); setEditandoRespuesta(null); setNuevaRespuesta(''); }} 
+      <Modal open={modalRespuestas} onClose={intentarCerrarModal} 
         title="Gestionar Respuestas Rápidas" maxWidth="max-w-2xl">
         <div className="space-y-4">
           {/* Agregar nueva respuesta */}
@@ -622,7 +696,7 @@ export default function InstructorExcusas() {
                 <p className="text-sm">No hay respuestas rápidas guardadas</p>
               </div>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-2 max-h-96 overflow-y-auto pr-2">
                 {respuestasRapidas.map((respuesta, index) => (
                   <div 
                     key={index}
@@ -651,7 +725,7 @@ export default function InstructorExcusas() {
                             onClick={() => actualizarRespuesta(index, respuesta)}
                             className="btn-primary flex-1"
                           >
-                            <Check size={14}/> Guardar
+                            <Check size={14}/> Confirmar
                           </button>
                           <button 
                             onClick={() => setEditandoRespuesta(null)}
@@ -664,13 +738,13 @@ export default function InstructorExcusas() {
                     ) : (
                       <div className="flex items-start gap-3">
                         <button 
-                          className="cursor-move text-gray-400 hover:text-gray-600 mt-1"
+                          className="cursor-move text-gray-400 hover:text-gray-600 mt-1 flex-shrink-0"
                           title="Arrastra para reordenar"
                         >
                           <GripVertical size={16}/>
                         </button>
-                        <p className="flex-1 text-sm text-gray-700">{respuesta}</p>
-                        <div className="flex gap-1">
+                        <p className="flex-1 text-sm text-gray-700 break-words overflow-hidden">{respuesta}</p>
+                        <div className="flex gap-1 flex-shrink-0">
                           <button 
                             onClick={() => setEditandoRespuesta(index)}
                             className="btn-icon text-blue-400 hover:bg-blue-50"
@@ -694,9 +768,39 @@ export default function InstructorExcusas() {
             )}
           </div>
 
-          {/* Botón restaurar por defecto */}
-          <div className="pt-4 border-t border-gray-200">
-            <button onClick={() => setConfirmRestaurar(true)} className="btn-secondary w-full">
+          {/* Botones de acción */}
+          <div className="pt-4 border-t border-gray-200 space-y-3">
+            <div className="flex gap-3">
+              <button 
+                onClick={intentarCerrarModal} 
+                className="btn-secondary flex-1"
+                disabled={guardandoRespuestas}
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={guardarCambiosRespuestas} 
+                className="btn-primary flex-1"
+                disabled={guardandoRespuestas || !hayCambiosPendientes()}
+              >
+                {guardandoRespuestas ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/>
+                    Guardando...
+                  </>
+                ) : (
+                  <>
+                    <Check size={16}/> Guardar Cambios
+                  </>
+                )}
+              </button>
+            </div>
+            
+            <button 
+              onClick={() => setConfirmRestaurar(true)} 
+              className="btn-secondary w-full"
+              disabled={guardandoRespuestas}
+            >
               Restaurar Respuestas por Defecto
             </button>
           </div>
@@ -712,6 +816,18 @@ export default function InstructorExcusas() {
         message="Esto eliminará todas tus respuestas personalizadas y las reemplazará con las respuestas predeterminadas del sistema."
         confirmText="Sí, restaurar"
         cancelText="Cancelar"
+        type="warning"
+      />
+
+      {/* Confirmación salir sin guardar */}
+      <ConfirmDialog
+        open={confirmSalir}
+        onClose={() => setConfirmSalir(false)}
+        onConfirm={confirmarSalirSinGuardar}
+        title="¿Salir sin guardar?"
+        message="Tienes cambios sin guardar. Si sales ahora, perderás todos los cambios realizados."
+        confirmText="Sí, salir sin guardar"
+        cancelText="Continuar editando"
         type="warning"
       />
     </div>

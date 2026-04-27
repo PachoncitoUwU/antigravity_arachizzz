@@ -28,19 +28,17 @@ export default function Modal({ open, onClose, title, children, maxWidth = 'max-
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '16px',
-        zIndex: 9999,
-        overflowY: 'auto'
+        zIndex: 9999
       }}
       onClick={onClose}
     >
       <div 
         className={`bg-white rounded-2xl shadow-xl w-full ${maxWidth} relative`}
         style={{
-          maxHeight: 'calc(100vh - 32px)',
+          maxHeight: '90vh',
           display: 'flex',
           flexDirection: 'column',
-          margin: '16px 0'
+          margin: '20px'
         }}
         onClick={e => e.stopPropagation()}
       >

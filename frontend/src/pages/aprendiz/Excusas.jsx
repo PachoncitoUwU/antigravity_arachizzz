@@ -43,6 +43,20 @@ export default function AprendizExcusas() {
     }
   };
 
+  // Helper para obtener el día de la semana en español
+  const getDiaSemana = (fecha) => {
+    const dias = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+    const date = new Date(fecha + 'T00:00:00');
+    return dias[date.getDay()];
+  };
+
+  // Helper para validar si una fecha tiene clase
+  const validarFechaConClase = (fecha, horarios) => {
+    if (!horarios || horarios.length === 0) return true; // Si no hay horarios, permitir cualquier fecha
+    const diaSemana = getDiaSemana(fecha);
+    return horarios.some(h => h.dia === diaSemana);
+  };
+
   useEffect(() => {
     loadExcusas();
     loadMaterias();
@@ -93,6 +107,17 @@ export default function AprendizExcusas() {
         throw new Error('Por favor completa todos los campos obligatorios');
       }
 
+      // Validar que las fechas tengan clase
+      const materiaSeleccionada = materias.find(m => m.id === form.materiaId);
+      if (materiaSeleccionada && materiaSeleccionada.horarios) {
+        for (const fecha of fechasValidas) {
+          if (!validarFechaConClase(fecha, materiaSeleccionada.horarios)) {
+            const diaSemana = getDiaSemana(fecha);
+            throw new Error(`La fecha ${new Date(fecha + 'T00:00:00').toLocaleDateString('es-CO')} (${diaSemana}) no tiene clase de ${materiaSeleccionada.nombre}`);
+          }
+        }
+      }
+
       // Validar archivos
       for (const archivo of archivos) {
         if (archivo.size > 20 * 1024 * 1024) {
@@ -135,6 +160,17 @@ export default function AprendizExcusas() {
       
       if (fechasValidas.length === 0) {
         throw new Error('Debes seleccionar al menos una fecha');
+      }
+
+      // Validar que las fechas tengan clase
+      const materiaExcusa = materias.find(m => m.id === modalEditar.materiaId);
+      if (materiaExcusa && materiaExcusa.horarios) {
+        for (const fecha of fechasValidas) {
+          if (!validarFechaConClase(fecha, materiaExcusa.horarios)) {
+            const diaSemana = getDiaSemana(fecha);
+            throw new Error(`La fecha ${new Date(fecha + 'T00:00:00').toLocaleDateString('es-CO')} (${diaSemana}) no tiene clase de ${materiaExcusa.nombre}`);
+          }
+        }
       }
 
       const body = new FormData();
@@ -515,72 +551,114 @@ export default function AprendizExcusas() {
       </Modal>
 
       {/* Modal editar excusa */}
-      <Modal open={!!modalEditar} onClose={() => setModalEditar(null)} title="Editar Excusa" maxWidth="max-w-lg">
+      <Modal open={!!modalEditar} onClose={() => setModalEditar(null)} title="Editar Excusa" maxWidth="max-w-4xl">
         {modalEditar && (
           <form onSubmit={handleEdit} className="space-y-4">
             {errorModal && <p className="text-sm text-red-500 bg-red-50 px-3 py-2 rounded-lg">{errorModal}</p>}
             
-            <div className="p-3 bg-gray-50 rounded-xl">
-              <p className="text-sm font-semibold text-gray-800">{modalEditar.materia.nombre}</p>
-            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              {/* Formulario principal */}
+              <div className="lg:col-span-2 space-y-4">
+                <div className="p-3 bg-gray-50 rounded-xl">
+                  <p className="text-sm font-semibold text-gray-800">{modalEditar.materia.nombre}</p>
+                </div>
 
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="input-label mb-0">Fechas de las faltas *</label>
-                <button type="button" onClick={addFecha}
-                  className="text-xs text-[#4285F4] hover:underline flex items-center gap-1">
-                  <Plus size={12}/> Agregar fecha
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="input-label mb-0">Fechas de las faltas *</label>
+                    <button type="button" onClick={addFecha}
+                      className="text-xs text-[#4285F4] hover:underline flex items-center gap-1">
+                      <Plus size={12}/> Agregar fecha
+                    </button>
+                  </div>
+                  <div className="space-y-2">
+                    {form.fechas.map((f, i) => (
+                      <div key={i} className="flex gap-2">
+                        <input type="date" required className="input-field flex-1" max={maxDate}
+                          value={f} onChange={e => updateFecha(i, e.target.value)} />
+                        {form.fechas.length > 1 && (
+                          <button type="button" onClick={() => removeFecha(i)}
+                            className="btn-icon text-red-400 hover:bg-red-50">
+                            <Trash2 size={14}/>
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">Solo puedes seleccionar fechas con clase de esta materia</p>
+                </div>
+
+                <div>
+                  <label className="input-label">Motivo de la falta *</label>
+                  <textarea required rows={4} className="input-field resize-none"
+                    placeholder="Describa detalladamente el motivo de su ausencia..."
+                    value={form.motivo} onChange={e => setForm({...form, motivo: e.target.value})} />
+                </div>
+
+                <div>
+                  <label className="input-label">Cambiar archivos adjuntos (opcional)</label>
+                  <p className="text-xs text-gray-500 mb-2">Solo se permiten imágenes (JPG, PNG) y documentos PDF. Máximo 20MB por archivo.</p>
+                  <input type="file" multiple accept=".pdf,.jpg,.jpeg,.png" className="input-field"
+                    onChange={handleFileChange} />
+                  {modalEditar.archivosUrls && safeJSONParse(modalEditar.archivosUrls, []).length > 0 && archivos.length === 0 && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Archivos actuales: {safeJSONParse(modalEditar.archivosUrls, []).length} archivo(s)
+                    </p>
+                  )}
+                  {archivos.length > 0 && (
+                    <div className="mt-2 space-y-2">
+                      {archivos.map((archivo, i) => (
+                        <div key={i} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
+                          <div className="flex items-center gap-2">
+                            <Paperclip size={14} className="text-gray-400"/>
+                            <span className="text-sm text-gray-700">{archivo.name}</span>
+                          </div>
+                          <button type="button" onClick={() => removeArchivo(i)}
+                            className="text-red-400 hover:text-red-600">
+                            <X size={16}/>
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Horario */}
+              <div className="lg:block hidden">
+                <div className="card bg-gray-50 sticky top-4">
+                  <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                    <Calendar size={16}/> Horario de la Materia
+                  </h3>
+                  {(() => {
+                    const materiaExcusa = materias.find(m => m.id === modalEditar.materiaId);
+                    return materiaExcusa ? (
+                      materiaExcusa.horarios && materiaExcusa.horarios.length > 0 ? (
+                        <div className="space-y-2">
+                          {materiaExcusa.horarios.map((h, i) => (
+                            <div key={i} className="p-2 bg-white rounded-lg">
+                              <p className="text-sm font-medium text-gray-900">{h.dia}</p>
+                              <p className="text-xs text-gray-500">{h.horaInicio} - {h.horaFin}</p>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-500">No hay horarios configurados</p>
+                      )
+                    ) : (
+                      <p className="text-sm text-gray-500">Cargando horario...</p>
+                    );
+                  })()}
+                </div>
+              </div>
+
+              {/* Botón ver horario en móvil */}
+              <div className="lg:hidden">
+                <button type="button" onClick={() => setModalHorario(true)}
+                  className="btn-secondary w-full flex items-center justify-center gap-2">
+                  <Calendar size={16}/> Ver Horario
                 </button>
               </div>
-              <div className="space-y-2">
-                {form.fechas.map((f, i) => (
-                  <div key={i} className="flex gap-2">
-                    <input type="date" required className="input-field flex-1" max={maxDate}
-                      value={f} onChange={e => updateFecha(i, e.target.value)} />
-                    {form.fechas.length > 1 && (
-                      <button type="button" onClick={() => removeFecha(i)}
-                        className="btn-icon text-red-400 hover:bg-red-50">
-                        <Trash2 size={14}/>
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <label className="input-label">Motivo de la falta *</label>
-              <textarea required rows={4} className="input-field resize-none"
-                placeholder="Describa detalladamente el motivo de su ausencia..."
-                value={form.motivo} onChange={e => setForm({...form, motivo: e.target.value})} />
-            </div>
-
-            <div>
-              <label className="input-label">Cambiar archivos adjuntos (opcional)</label>
-              <p className="text-xs text-gray-500 mb-2">Solo se permiten imágenes (JPG, PNG) y documentos PDF. Máximo 20MB por archivo.</p>
-              <input type="file" multiple accept=".pdf,.jpg,.jpeg,.png" className="input-field"
-                onChange={handleFileChange} />
-              {modalEditar.archivosUrls && safeJSONParse(modalEditar.archivosUrls, []).length > 0 && archivos.length === 0 && (
-                <p className="text-xs text-gray-500 mt-1">
-                  Archivos actuales: {safeJSONParse(modalEditar.archivosUrls, []).length} archivo(s)
-                </p>
-              )}
-              {archivos.length > 0 && (
-                <div className="mt-2 space-y-2">
-                  {archivos.map((archivo, i) => (
-                    <div key={i} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
-                      <div className="flex items-center gap-2">
-                        <Paperclip size={14} className="text-gray-400"/>
-                        <span className="text-sm text-gray-700">{archivo.name}</span>
-                      </div>
-                      <button type="button" onClick={() => removeArchivo(i)}
-                        className="text-red-400 hover:text-red-600">
-                        <X size={16}/>
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
 
             <div className="flex gap-3 pt-2">
