@@ -1,5 +1,4 @@
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 const { getCurrentColombiaDate, getCurrentColombiaTime } = require('../utils/timeService');
 
 // RF08 - Crear sesión
@@ -496,7 +495,7 @@ const registerFacialAttendance = async (req, res) => {
       return res.status(400).json({ error: 'Este aprendiz ya registró asistencia' });
     }
 
-    // Obtener hora actual de Colombia
+    // Obtener hora actual de Colombia, Bogotá
     const colombiaTime = await getCurrentColombiaTime();
 
     const registro = await prisma.registroAsistencia.create({
