@@ -1,4 +1,5 @@
 const prisma = require('../lib/prisma');
+const { detectarConflictos, crearConflicto } = require('../utils/horarioConflictos');
 
 // RF07/RF57 - Crear clase en horario
 const createHorario = async (req, res) => {
@@ -75,13 +76,46 @@ const deleteHorario = async (req, res) => {
   try {
     const horario = await prisma.horario.findUnique({
       where: { id },
-      include: { ficha: { include: { instructores: true } } }
+      include: { 
+        ficha: { include: { instructores: true } },
+        materia: { select: { instructorId: true } }
+      }
     });
     if (!horario) return res.status(404).json({ error: 'Clase no encontrada' });
     if (!horario.ficha.instructores.some(i => i.instructorId === instructorId)) {
       return res.status(403).json({ error: 'No tienes permiso' });
     }
+    
+    const dia = horario.dia;
+    const materiaInstructorId = horario.materia?.instructorId;
+    
     await prisma.horario.delete({ where: { id } });
+    
+    // Verificar si se resolvieron conflictos en este día
+    if (materiaInstructorId) {
+      const conflictosRestantes = await detectarConflictos(
+        materiaInstructorId,
+        dia,
+        '00:00',
+        '23:59'
+      );
+      
+      // Si no quedan conflictos, marcar como resueltos
+      if (conflictosRestantes.length === 0) {
+        await prisma.conflictoHorario.updateMany({
+          where: {
+            instructorId: materiaInstructorId,
+            dia,
+            resuelto: false
+          },
+          data: {
+            resuelto: true,
+            resolvedAt: new Date()
+          }
+        });
+      }
+    }
+    
     res.json({ message: 'Clase eliminada del horario' });
   } catch (err) {
     res.status(500).json({ error: 'Error: ' + err.message });
@@ -222,6 +256,31 @@ const updateHorario = async (req, res) => {
         } 
       }
     });
+    
+    // Verificar si se resolvieron conflictos
+    const conflictosActuales = await detectarConflictos(
+      instructorId,
+      finalDia,
+      finalHoraInicio,
+      finalHoraFin,
+      id
+    );
+    
+    // Si no hay conflictos, marcar como resueltos los conflictos de este día
+    if (conflictosActuales.length === 0) {
+      await prisma.conflictoHorario.updateMany({
+        where: {
+          instructorId,
+          dia: finalDia,
+          resuelto: false
+        },
+        data: {
+          resuelto: true,
+          resolvedAt: new Date()
+        }
+      });
+    }
+    
     res.json({ message: 'Horario actualizado', horario: updated });
   } catch (err) {
     res.status(500).json({ error: 'Error: ' + err.message });
@@ -229,3 +288,181 @@ const updateHorario = async (req, res) => {
 };
 
 module.exports = { createHorario, deleteHorario, getHorarioByFicha, getMyHorarios, updateHorario };
+
+
+// Actualizar horario por admin (permite conflictos)
+const updateHorarioAdmin = async (req, res) => {
+  const { id } = req.params;
+  const { dia, horaInicio, horaFin } = req.body;
+  const adminId = req.user.id;
+  
+  // Validar que horaFin sea mayor que horaInicio si ambos están presentes
+  if (horaInicio && horaFin && horaFin <= horaInicio) {
+    return res.status(400).json({ error: 'La hora de fin debe ser posterior a la hora de inicio' });
+  }
+  
+  try {
+    const horario = await prisma.horario.findUnique({
+      where: { id },
+      include: { 
+        ficha: true,
+        materia: { 
+          select: { 
+            instructorId: true,
+            instructor: { select: { fullName: true } }
+          } 
+        }
+      }
+    });
+    
+    if (!horario) return res.status(404).json({ error: 'Clase no encontrada' });
+    
+    // Verificar que el admin tiene acceso a esta ficha
+    if (horario.ficha.administradorId !== adminId) {
+      return res.status(403).json({ error: 'No tienes permiso sobre esta ficha' });
+    }
+    
+    // Preparar datos para actualizar
+    const finalDia = dia || horario.dia;
+    const finalHoraInicio = horaInicio || horario.horaInicio;
+    const finalHoraFin = horaFin || horario.horaFin;
+    
+    // Validar que la hora final sea mayor que la inicial
+    if (finalHoraFin <= finalHoraInicio) {
+      return res.status(400).json({ error: 'La hora de fin debe ser posterior a la hora de inicio' });
+    }
+    
+    // Detectar conflictos (pero NO bloquear la actualización)
+    const conflictos = await detectarConflictos(
+      horario.materia.instructorId,
+      finalDia,
+      finalHoraInicio,
+      finalHoraFin,
+      id
+    );
+    
+    // Actualizar el horario
+    const updated = await prisma.horario.update({
+      where: { id },
+      data: {
+        ...(dia && { dia }),
+        ...(horaInicio && { horaInicio }),
+        ...(horaFin && { horaFin }),
+      },
+      include: { 
+        materia: { 
+          include: { 
+            instructor: { select: { fullName: true } },
+            ficha: { select: { numero: true, nombre: true } }
+          } 
+        } 
+      }
+    });
+    
+    // Si hay conflictos, crear registro de conflicto
+    if (conflictos.length > 0) {
+      await crearConflicto(
+        horario.materia.instructorId,
+        finalDia,
+        conflictos,
+        adminId
+      );
+    }
+    
+    // Registrar en historial
+    await prisma.historialCambios.create({
+      data: {
+        fichaId: horario.fichaId,
+        usuarioId: adminId,
+        tipoEvento: 'editar_horario',
+        entidad: 'horario',
+        entidadId: id,
+        descripcion: `Editó el horario de ${horario.materia.instructor.fullName} - ${updated.materia.nombre}`,
+        datosAnteriores: { dia: horario.dia, horaInicio: horario.horaInicio, horaFin: horario.horaFin },
+        datosNuevos: { dia: finalDia, horaInicio: finalHoraInicio, horaFin: finalHoraFin }
+      }
+    });
+    
+    res.json({ 
+      message: 'Horario actualizado', 
+      horario: updated,
+      conflictos: conflictos.length > 0 ? {
+        count: conflictos.length,
+        message: `Se generaron ${conflictos.length} conflicto(s) de horario para el instructor`
+      } : null
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Error: ' + err.message });
+  }
+};
+
+// Obtener conflictos de un instructor
+const getConflictosInstructor = async (req, res) => {
+  const instructorId = req.user.id;
+  
+  try {
+    const conflictos = await prisma.conflictoHorario.findMany({
+      where: {
+        instructorId,
+        resuelto: false
+      },
+      include: {
+        admin: {
+          select: {
+            fullName: true
+          }
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+    
+    res.json({ conflictos });
+  } catch (err) {
+    res.status(500).json({ error: 'Error: ' + err.message });
+  }
+};
+
+// Resolver conflicto (marcar como resuelto)
+const resolverConflicto = async (req, res) => {
+  const { id } = req.params;
+  const instructorId = req.user.id;
+  
+  try {
+    const conflicto = await prisma.conflictoHorario.findUnique({
+      where: { id }
+    });
+    
+    if (!conflicto) {
+      return res.status(404).json({ error: 'Conflicto no encontrado' });
+    }
+    
+    if (conflicto.instructorId !== instructorId) {
+      return res.status(403).json({ error: 'No tienes permiso para resolver este conflicto' });
+    }
+    
+    const updated = await prisma.conflictoHorario.update({
+      where: { id },
+      data: {
+        resuelto: true,
+        resolvedAt: new Date()
+      }
+    });
+    
+    res.json({ message: 'Conflicto resuelto', conflicto: updated });
+  } catch (err) {
+    res.status(500).json({ error: 'Error: ' + err.message });
+  }
+};
+
+module.exports = { 
+  createHorario, 
+  deleteHorario, 
+  getHorarioByFicha, 
+  getMyHorarios, 
+  updateHorario,
+  updateHorarioAdmin,
+  getConflictosInstructor,
+  resolverConflicto
+};

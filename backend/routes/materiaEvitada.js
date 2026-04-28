@@ -24,7 +24,7 @@ router.get(
 router.put(
   '/materias-evitadas/fichas/:fichaId/aprendices/:aprendizId/materias-evitadas',
   authMiddleware,
-  roleMiddleware(['instructor']),
+  roleMiddleware(['instructor', 'administrador']),
   materiaEvitadaController.updateMateriasEvitadas
 );
 

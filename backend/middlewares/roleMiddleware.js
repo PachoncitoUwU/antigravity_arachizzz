@@ -21,4 +21,18 @@ const isAprendiz = (req, res, next) => {
   next();
 };
 
-module.exports = { roleMiddleware, isInstructor, isAprendiz };
+const isAdministrador = (req, res, next) => {
+  if (!req.user || req.user.userType !== 'administrador') {
+    return res.status(403).json({ error: 'Acceso denegado. Solo administradores.' });
+  }
+  next();
+};
+
+const isAdministradorOrInstructor = (req, res, next) => {
+  if (!req.user || !['administrador', 'instructor'].includes(req.user.userType)) {
+    return res.status(403).json({ error: 'Acceso denegado. Solo administradores o instructores.' });
+  }
+  next();
+};
+
+module.exports = { roleMiddleware, isInstructor, isAprendiz, isAdministrador, isAdministradorOrInstructor };

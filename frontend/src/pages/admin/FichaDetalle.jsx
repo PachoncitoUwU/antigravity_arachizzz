@@ -47,6 +47,10 @@ export default function FichaDetalle() {
   const [modalMateriaInfo, setModalMateriaInfo] = useState(false);
   const [selectedMateria, setSelectedMateria] = useState(null);
   
+  // Estados para modal de instructor
+  const [modalInstructorPerfil, setModalInstructorPerfil] = useState(false);
+  const [selectedInstructor, setSelectedInstructor] = useState(null);
+  
   // Estados para pestañas y búsqueda
   const [activeTab, setActiveTab] = useState('aprendices'); // 'aprendices' | 'materias'
   const [searchQuery, setSearchQuery] = useState('');
@@ -74,11 +78,11 @@ export default function FichaDetalle() {
   const loadFicha = async () => {
     try {
       setLoading(true);
-      const data = await fetchApi(`/fichas/${id}`);
+      const data = await fetchApi(`/admin/fichas/${id}`);
       setFicha(data.ficha);
     } catch (err) {
       showToast(err.message || 'Error al cargar la ficha', 'error');
-      navigate('/instructor/fichas');
+      navigate('/admin/fichas');
     } finally {
       setLoading(false);
     }
@@ -127,7 +131,7 @@ export default function FichaDetalle() {
 
   const confirmRegenerate = async () => {
     try {
-      await fetchApi(`/fichas/${id}/regenerate-code`, { method: 'POST' });
+      await fetchApi(`/admin/fichas/${id}/regenerate-code`, { method: 'POST' });
       showToast('Código regenerado', 'success');
       loadFicha();
     } catch (err) {
@@ -171,7 +175,7 @@ export default function FichaDetalle() {
 
   const confirmRemoveAprendiz = async () => {
     try {
-      await fetchApi(`/fichas/${id}/aprendices/${confirmModal.data}`, { method: 'DELETE' });
+      await fetchApi(`/admin/fichas/${id}/aprendices/${confirmModal.data}`, { method: 'DELETE' });
       showToast('Aprendiz eliminado', 'success');
       loadFicha();
     } catch (err) {
@@ -222,7 +226,7 @@ export default function FichaDetalle() {
     setErrorEdit('');
     setSavingEdit(true);
     try {
-      await fetchApi(`/fichas/${id}`, {
+      await fetchApi(`/admin/fichas/${id}`, {
         method: 'PUT',
         body: JSON.stringify(formEdit)
       });
@@ -257,10 +261,48 @@ export default function FichaDetalle() {
     setSelectedAprendiz(null);
   };
 
+  const handleOpenInstructorPerfil = (instructor) => {
+    setSelectedInstructor(instructor);
+    setModalInstructorPerfil(true);
+  };
+
+  const handleCloseInstructorPerfil = () => {
+    setModalInstructorPerfil(false);
+    setSelectedInstructor(null);
+  };
+
+  const handleDesignarLider = async (instructorId) => {
+    // Cerrar el modal de perfil primero
+    setModalInstructorPerfil(false);
+    
+    // Pequeño delay para que se cierre el modal antes de abrir el de confirmación
+    setTimeout(() => {
+      setConfirmModal({
+        isOpen: true,
+        action: 'designarLider',
+        data: instructorId
+      });
+    }, 100);
+  };
+
+  const confirmDesignarLider = async () => {
+    try {
+      await fetchApi(`/admin/fichas/${id}/cambiar-lider`, {
+        method: 'PUT',
+        body: JSON.stringify({ nuevoLiderId: confirmModal.data })
+      });
+      showToast('Líder designado exitosamente', 'success');
+      loadFicha();
+      // No necesitamos cerrar el modal de instructor porque ya está cerrado
+    } catch (err) {
+      showToast(err.message || 'Error al designar líder', 'error');
+    }
+  };
+
   const handleBiometricUpdate = async () => {
     // Recargar solo los datos de la ficha sin mostrar loading completo
     try {
-      const data = await fetchApi(`/fichas/${id}`);
+      const data = await fetchApi(`/admin/fichas/${id}`);
       setFicha(data.ficha);
       
       // Actualizar el aprendiz seleccionado si existe
@@ -288,7 +330,7 @@ export default function FichaDetalle() {
   const handleMateriaUpdate = async () => {
     // Recargar solo los datos sin mostrar loading completo
     try {
-      const data = await fetchApi(`/fichas/${id}`);
+      const data = await fetchApi(`/admin/fichas/${id}`);
       setFicha(data.ficha);
     } catch (err) {
       console.error('Error al actualizar datos:', err);
@@ -298,7 +340,7 @@ export default function FichaDetalle() {
   const handleMateriaDelete = async () => {
     // Recargar solo los datos sin mostrar loading completo
     try {
-      const data = await fetchApi(`/fichas/${id}`);
+      const data = await fetchApi(`/admin/fichas/${id}`);
       setFicha(data.ficha);
     } catch (err) {
       console.error('Error al actualizar datos:', err);
@@ -380,7 +422,7 @@ export default function FichaDetalle() {
 
   if (!ficha) return null;
 
-  const isLider = ficha.instructorAdminId === user?.id;
+  const isAdmin = user?.userType === 'administrador';
   const isInstructor = ficha.instructores?.some(fi => fi.instructorId === user?.id);
   const COLOR = '#4285F4'; // Color principal azul
 
@@ -459,7 +501,7 @@ export default function FichaDetalle() {
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <button 
-            onClick={() => navigate('/instructor/fichas')} 
+            onClick={() => navigate('/admin/fichas')} 
             className="btn-icon text-gray-400 hover:bg-gray-100"
             title="Volver a fichas"
           >
@@ -555,7 +597,7 @@ export default function FichaDetalle() {
         <div className="lg:col-span-2 card">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold text-gray-900 dark:text-white">Información General</h2>
-            {isLider && (
+            {isAdmin && (
               <button onClick={handleOpenEdit} className="btn-icon text-gray-400 hover:bg-gray-100" title="Editar">
                 <Edit2 size={16} />
               </button>
@@ -627,7 +669,7 @@ export default function FichaDetalle() {
               {copiedLink ? 'Link copiado' : 'Copiar link'}
             </button>
 
-            {isLider && (
+            {isAdmin && (
               <button 
                 onClick={handleRegenerate} 
                 className="btn-secondary w-full flex items-center justify-center gap-2 text-sm py-2 text-orange-600 hover:bg-orange-50"
@@ -691,7 +733,7 @@ export default function FichaDetalle() {
           </div>
 
           {/* Botón agregar materia */}
-          {activeTab === 'materias' && isInstructor && (
+          {activeTab === 'materias' && (isInstructor || isAdmin) && (
             <button 
               onClick={() => {
                 setModalMateria(true);
@@ -809,7 +851,7 @@ export default function FichaDetalle() {
                     ? 'No se encontraron materias con esos filtros' 
                     : 'Sin materias asignadas aún'}
                 </p>
-                {!searchQuery && filterTipo === 'all' && filterInstructor === 'all' && isInstructor && (
+                {!searchQuery && filterTipo === 'all' && filterInstructor === 'all' && (isInstructor || isAdmin) && (
                   <button 
                     onClick={() => {
                       setModalMateria(true);
@@ -851,6 +893,7 @@ export default function FichaDetalle() {
         )}
       </div>
 
+      {/* Instructores */}
       {/* Administrador e Instructores */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         {/* Administrador */}
@@ -904,12 +947,13 @@ export default function FichaDetalle() {
             <div className="space-y-2 max-h-64 overflow-y-auto">
               {ficha.instructores?.map(fi => {
                 const avatarSrc = resolveAvatar(fi.instructor.avatarUrl);
-                const isLiderInstructor = fi.instructorId === ficha.instructorAdminId;
+                const isLider = fi.instructorId === ficha.instructorAdminId;
                 
                 return (
                   <div 
                     key={fi.id} 
-                    className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700"
+                    onClick={() => handleOpenInstructorPerfil(fi.instructor)}
+                    className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer transition-colors"
                   >
                     {avatarSrc ? (
                       <img 
@@ -931,7 +975,7 @@ export default function FichaDetalle() {
                       </p>
                       <p className="text-xs text-gray-400 truncate">{fi.instructor.email}</p>
                     </div>
-                    {isLiderInstructor && (
+                    {isLider && (
                       <span className="badge badge-info shrink-0 text-xs">Líder</span>
                     )}
                   </div>
@@ -1158,7 +1202,7 @@ export default function FichaDetalle() {
           open={modalPerfil} 
           onClose={handleClosePerfil} 
           aprendiz={selectedAprendiz}
-          isAdmin={isLider}
+          isAdmin={isAdmin}
           fichaId={id}
           materias={ficha.materias || []}
           onRemoveAprendiz={handleRemoveAprendiz}
@@ -1172,10 +1216,75 @@ export default function FichaDetalle() {
           open={modalMateriaInfo} 
           onClose={handleCloseMateriaInfo} 
           materia={selectedMateria}
-          isCreatorOrAdmin={selectedMateria.instructorId === user?.id || isLider}
+          isCreatorOrAdmin={selectedMateria.instructorId === user?.id || isAdmin}
           onUpdate={handleMateriaUpdate}
           onDelete={handleMateriaDelete}
         />
+      )}
+
+      {/* Modal de perfil de instructor */}
+      {selectedInstructor && (
+        <Modal open={modalInstructorPerfil} onClose={handleCloseInstructorPerfil} title="Perfil del Instructor">
+          <div className="space-y-4">
+            {/* Foto y datos básicos */}
+            <div className="flex items-center gap-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-xl">
+              {resolveAvatar(selectedInstructor.avatarUrl) ? (
+                <img 
+                  src={resolveAvatar(selectedInstructor.avatarUrl)} 
+                  className="w-20 h-20 rounded-xl object-cover" 
+                  alt={selectedInstructor.fullName} 
+                />
+              ) : (
+                <div 
+                  className="w-20 h-20 rounded-xl flex items-center justify-center text-xl font-bold text-white"
+                  style={{ backgroundColor: COLOR }}
+                >
+                  {selectedInstructor.fullName.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()}
+                </div>
+              )}
+              <div className="flex-1">
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white">{selectedInstructor.fullName}</h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400">{selectedInstructor.email}</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 font-mono">{selectedInstructor.document}</p>
+              </div>
+            </div>
+
+            {/* Materias a cargo */}
+            <div>
+              <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                Materias a cargo en esta ficha
+              </h4>
+              {ficha.materias?.filter(m => m.instructorId === selectedInstructor.id).length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-4">Sin materias asignadas</p>
+              ) : (
+                <div className="space-y-2">
+                  {ficha.materias?.filter(m => m.instructorId === selectedInstructor.id).map(materia => (
+                    <div key={materia.id} className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">{materia.nombre}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{materia.tipo}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Botón designar como líder */}
+            <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+              {ficha.instructorAdminId === selectedInstructor.id ? (
+                <div className="text-center py-2">
+                  <span className="badge badge-info">Líder Actual</span>
+                </div>
+              ) : (
+                <button
+                  onClick={() => handleDesignarLider(selectedInstructor.id)}
+                  className="btn-primary w-full"
+                >
+                  Designar como Líder
+                </button>
+              )}
+            </div>
+          </div>
+        </Modal>
       )}
 
       {/* Modal de confirmación */}
@@ -1185,15 +1294,18 @@ export default function FichaDetalle() {
         onConfirm={() => {
           if (confirmModal.action === 'regenerate') confirmRegenerate();
           else if (confirmModal.action === 'removeAprendiz') confirmRemoveAprendiz();
+          else if (confirmModal.action === 'designarLider') confirmDesignarLider();
         }}
         title={
           confirmModal.action === 'regenerate' ? '¿Regenerar código?' :
           confirmModal.action === 'removeAprendiz' ? '¿Eliminar aprendiz?' :
+          confirmModal.action === 'designarLider' ? '¿Designar como Líder?' :
           '¿Estás seguro?'
         }
         message={
           confirmModal.action === 'regenerate' ? 'El código anterior dejará de funcionar.' :
           confirmModal.action === 'removeAprendiz' ? '¿Eliminar este aprendiz de la ficha?' :
+          confirmModal.action === 'designarLider' ? 'El líder actual perderá sus permisos y este instructor será el nuevo líder de la ficha.' :
           'Esta acción no se puede deshacer.'
         }
         confirmText="Confirmar"
