@@ -268,17 +268,18 @@ export default function MateriaInfoModal({
           </>
         )}
       </div>
-
-      <ConfirmDialog
-        open={confirmDialog.open}
-        onClose={() => setConfirmDialog({ open: false, action: null })}
-        onConfirm={confirmDialog.action}
-        title="Eliminar Materia"
-        message={`¿Estás seguro de eliminar la materia "${materia.nombre}"? Esta acción no se puede deshacer.`}
-        confirmText="Eliminar"
-        cancelText="Cancelar"
-        danger={true}
-      />
     </Modal>
+
+    <ConfirmDialog
+      open={confirmDialog.open}
+      onClose={() => setConfirmDialog({ open: false, action: null })}
+      onConfirm={confirmDialog.action}
+      title="Eliminar Materia"
+      message={`¿Estás seguro de eliminar la materia "${materia.nombre}"? Esta acción no se puede deshacer.`}
+      confirmText="Eliminar"
+      cancelText="Cancelar"
+      danger={true}
+    />
+  </>
   );
 }
