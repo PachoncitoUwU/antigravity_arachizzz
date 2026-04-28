@@ -5,6 +5,7 @@ import { useToast } from '../context/ToastContext';
 import PageHeader from '../components/PageHeader';
 import ConfirmDialog from '../components/ConfirmDialog';
 import SerialConnect from '../components/SerialConnect';
+import ConfirmModal from '../components/ConfirmModal';
 import { Moon, Sun, Globe, Bell, User, Shield, Palette, Save, Camera, Loader, Usb } from 'lucide-react';
 import TowerStack   from '../games/TowerStack';
 import MemoryFlash  from '../games/MemoryFlash';
@@ -100,9 +101,10 @@ function BreakoutGame({ onClose, currentUser }) {
   useEffect(() => {
     const canvas = canvasRef.current; if (!canvas) return;
     const ctx = canvas.getContext('2d');
-    // ── Parámetros de dificultad alta ──
+    // ── Parámetros con velocidad constante ──
     let x = canvas.width/2, y = canvas.height-50;
-    let dx = 3.0, dy = -3.0;          // bola inicial a velocidad moderada
+    const SPEED = 3.5;                // Velocidad fija y constante
+    let dx = SPEED, dy = -SPEED;      // Velocidad constante durante todo el juego
     const ballR=6, padH=9, padW=60;   // paleta más pequeña
     let padX=(canvas.width-padW)/2;
     let right=false, left=false;
@@ -117,7 +119,7 @@ function BreakoutGame({ onClose, currentUser }) {
 
     const restart=()=>{
       x=canvas.width/2;y=canvas.height-50;
-      dx=3.0;dy=-3.0;level=1;sc=0;
+      dx=SPEED;dy=-SPEED;level=1;sc=0;
       bricks=makeBricks();
       deadRef.current=false;
       savedRef.current=false;
@@ -181,16 +183,14 @@ function BreakoutGame({ onClose, currentUser }) {
           if(overlapX < overlapY) dx = -dx;
           else dy = -dy;
 
-          // Acelerar cada 4 ladrillos destruidos
-          const destroyed=bricks.flat().filter(bk=>!bk.on).length;
-          if(destroyed%4===0){const spd=Math.min(9,Math.abs(dx)+0.3);dx=dx>0?spd:-spd;dy=dy>0?spd:-spd;}
+          // Mantener velocidad constante - sin aceleración
         }
       }
-      // Siguiente nivel
+      // Siguiente nivel - mantener velocidad constante
       if(bricks.every(col=>col.every(b=>!b.on))){
         level++;bricks=makeBricks();
-        const spd=Math.min(10,3.0+level*0.4);
-        dx=dx>0?spd:-spd;dy=-Math.abs(spd);
+        // Mantener la misma velocidad constante
+        dx=dx>0?SPEED:-SPEED;dy=-SPEED;
       }
       if(x+dx>canvas.width-ballR||x+dx<ballR)dx=-dx;
       
@@ -450,13 +450,14 @@ function FlappyGame({ onClose, currentUser }) {
       ctx.fillStyle = groundGradient;
       ctx.fillRect(0, H - 38, W, 38);
 
-      // Dibujar maní (Emoji predeterminado pero con font-family segura para evitar bugs en iOS)
+      // Dibujar maní (Emoji con mejor renderizado para iOS)
       ctx.save();
       ctx.translate(bird.x, bird.y);
       const angle = Math.min(Math.max(bird.vy * 0.03, -0.3), 0.6);
       ctx.rotate(angle);
       
-      ctx.font = '28px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif';
+      // Usar fuente más grande y específica para mejor visualización en iOS
+      ctx.font = 'bold 32px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       // Sombra para dar profundidad
@@ -692,7 +693,26 @@ function FlappyGame({ onClose, currentUser }) {
               </div>
               <button style={btn} onClick={e=>{e.stopPropagation();jump();}}
                 onMouseDown={e=>e.currentTarget.style.transform='scale(0.93)'}
-                onMouseUp={e=>e.currentTarget.style.transform='scale(1)'}>🥜</button>
+                onMouseUp={e=>e.currentTarget.style.transform='scale(1)'}
+                onTouchStart={e=>{e.preventDefault();e.currentTarget.style.transform='scale(0.93)';}}
+                onTouchEnd={e=>{e.preventDefault();e.currentTarget.style.transform='scale(1)';jump();}}
+                onContextMenu={e=>e.preventDefault()}
+                style={{
+                  ...btn,
+                  WebkitUserSelect: 'none',
+                  userSelect: 'none',
+                  WebkitTouchCallout: 'none',
+                  WebkitTapHighlightColor: 'transparent',
+                }}>
+                <span style={{
+                  fontSize: 32,
+                  display: 'block',
+                  lineHeight: 1,
+                  pointerEvents: 'none',
+                  WebkitUserSelect: 'none',
+                  userSelect: 'none',
+                }}>🥜</span>
+              </button>
             </>
           )}
           <p style={{color:'rgba(0,0,0,0.3)',fontSize:10,margin:0}}>Espacio / W / ↑ / Toca · ESC cierra</p>
@@ -1443,7 +1463,11 @@ export default function Configuracion() {
     if (showSnake) return; // Evitar clics adicionales cuando el juego está abierto
     setSecClicks(n => {
       const next = n + 1;
-      if (next >= 7) { setShowSnake(true); return 0; }
+      if (next >= 7) { 
+        setShowSnake(true); 
+        clearTimeout(secTimer.current); // Limpiar timer al abrir
+        return 0; 
+      }
       clearTimeout(secTimer.current);
       secTimer.current = setTimeout(() => setSecClicks(0), 2000);
       return next;
@@ -1458,7 +1482,11 @@ export default function Configuracion() {
     if (showArk) return; // Evitar clics adicionales cuando el juego está abierto
     setArkClicks(n => {
       const next = n + 1;
-      if (next >= 7) { setShowArk(true); return 0; }
+      if (next >= 7) { 
+        setShowArk(true); 
+        clearTimeout(arkTimer.current); // Limpiar timer al abrir
+        return 0; 
+      }
       clearTimeout(arkTimer.current);
       arkTimer.current = setTimeout(() => setArkClicks(0), 2000);
       return next;
@@ -1473,8 +1501,16 @@ export default function Configuracion() {
     if (showFlappy || showMemory) return; // Evitar clics adicionales cuando el juego está abierto
     setIdiomaClicks(n => {
       const next = n + 1;
-      if (next >= 10) { setShowMemory(true); return 0; }
-      if (next >= 7)  { setShowFlappy(true); return next; } // continúa contando hasta 10
+      if (next >= 10) { 
+        setShowMemory(true); 
+        clearTimeout(idiomaTimer.current); // Limpiar timer al abrir
+        return 0; 
+      }
+      if (next >= 7)  { 
+        setShowFlappy(true); 
+        clearTimeout(idiomaTimer.current); // Limpiar timer al abrir
+        return next; 
+      } // continúa contando hasta 10
       clearTimeout(idiomaTimer.current);
       idiomaTimer.current = setTimeout(() => setIdiomaClicks(0), 2000);
       return next;
@@ -1489,7 +1525,11 @@ export default function Configuracion() {
     if (showTower) return; // Evitar clics adicionales cuando el juego está abierto
     setNotiClicks(n => {
       const next = n + 1;
-      if (next >= 7) { setShowTower(true); return 0; }
+      if (next >= 7) { 
+        setShowTower(true); 
+        clearTimeout(notiTimer.current); // Limpiar timer al abrir
+        return 0; 
+      }
       clearTimeout(notiTimer.current);
       notiTimer.current = setTimeout(() => setNotiClicks(0), 2000);
       return next;
@@ -1504,7 +1544,11 @@ export default function Configuracion() {
     if (showMemory) return; // Evitar clics adicionales cuando el juego está abierto
     setEspanolClicks(n => {
       const next = n + 1;
-      if (next >= 7) { setShowMemory(true); return 0; }
+      if (next >= 7) { 
+        setShowMemory(true); 
+        clearTimeout(espanolTimer.current); // Limpiar timer al abrir
+        return 0; 
+      }
       clearTimeout(espanolTimer.current);
       espanolTimer.current = setTimeout(() => setEspanolClicks(0), 2000);
       return next;
@@ -1519,7 +1563,11 @@ export default function Configuracion() {
     if (showReaction) return; // Evitar clics adicionales cuando el juego está abierto
     setPerfilClicks(n => {
       const next = n + 1;
-      if (next >= 7) { setShowReaction(true); return 0; }
+      if (next >= 7) { 
+        setShowReaction(true); 
+        clearTimeout(perfilTimer.current); // Limpiar timer al abrir
+        return 0; 
+      }
       clearTimeout(perfilTimer.current);
       perfilTimer.current = setTimeout(() => setPerfilClicks(0), 2000);
       return next;
@@ -1534,7 +1582,11 @@ export default function Configuracion() {
     if (showWordle) return; // Evitar clics adicionales cuando el juego está abierto
     setWordleClicks(n => {
       const next = n + 1;
-      if (next >= 7) { setShowWordle(true); return 0; }
+      if (next >= 7) { 
+        setShowWordle(true); 
+        clearTimeout(wordleTimer.current); // Limpiar timer al abrir
+        return 0; 
+      }
       clearTimeout(wordleTimer.current);
       wordleTimer.current = setTimeout(() => setWordleClicks(0), 2000);
       return next;
@@ -1544,6 +1596,7 @@ export default function Configuracion() {
   // Botón oculto instructor — 10 clicks en el rol para borrar huellas
   const [instClicks, setInstClicks] = useState(0);
   const [showClear, setShowClear]   = useState(false);
+  const [confirmModal, setConfirmModal] = useState({ isOpen: false });
   const instTimer = useRef(null);
   const handleInstClick = () => {
     if (user?.userType !== 'instructor') return;
@@ -1570,6 +1623,20 @@ export default function Configuracion() {
       }
     });
   };
+
+  // Limpiar todos los timers al desmontar el componente
+  useEffect(() => {
+    return () => {
+      clearTimeout(secTimer.current);
+      clearTimeout(arkTimer.current);
+      clearTimeout(idiomaTimer.current);
+      clearTimeout(notiTimer.current);
+      clearTimeout(espanolTimer.current);
+      clearTimeout(perfilTimer.current);
+      clearTimeout(wordleTimer.current);
+      clearTimeout(instTimer.current);
+    };
+  }, []);
 
   const initials  = user?.fullName ? user.fullName.split(' ').map(n=>n[0]).slice(0,2).join('').toUpperCase() : '?';
   const roleColor = user?.userType === 'instructor' ? 'bg-[#4285F4]' : 'bg-[#34A853]';
@@ -1805,6 +1872,17 @@ export default function Configuracion() {
         <img src="/mi-logo.png" alt="Arachiz Logo" className="w-5 h-5 object-contain" />
         <p className="text-gray-500 text-xs font-medium">Arachiz Version 1.3.2</p>
       </div>
+
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal({ isOpen: false })}
+        onConfirm={confirmClearFingerprints}
+        title="¿Borrar base de datos?"
+        message="¿Borrar TODA la base de datos del sensor de huellas?"
+        confirmText="Borrar"
+        cancelText="Cancelar"
+        variant="danger"
+      />
     </div>
   );
 }

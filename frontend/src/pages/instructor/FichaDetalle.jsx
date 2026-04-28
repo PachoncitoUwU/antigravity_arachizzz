@@ -10,7 +10,7 @@ import AprendizPerfilModal from '../../components/AprendizPerfilModal';
 import MateriaInfoModal from '../../components/MateriaInfoModal';
 import {
   ArrowLeft, Users, BookOpen, Calendar, Copy, RefreshCw, Check, 
-  Download, Loader, Edit2, UserMinus, Fingerprint, Link, Clock, Plus
+  Download, Loader, Edit2, UserMinus, Fingerprint, Link, Clock, Plus, Star
 } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3000';
@@ -53,10 +53,21 @@ export default function FichaDetalle() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterTipo, setFilterTipo] = useState('all'); // 'all' | 'Técnica' | 'Transversal'
   const [filterInstructor, setFilterInstructor] = useState('all'); // 'all' | instructorId
+  
+  // Estado para fichas ancladas
+  const [isPinned, setIsPinned] = useState(false);
 
   useEffect(() => {
     loadFicha();
   }, [id]);
+  
+  useEffect(() => {
+    // Cargar estado de anclado desde localStorage
+    if (ficha && user) {
+      const pinnedFichas = JSON.parse(localStorage.getItem(`pinnedFichas_${user.id}`) || '[]');
+      setIsPinned(pinnedFichas.includes(ficha.id));
+    }
+  }, [ficha, user]);
 
   const loadFicha = async () => {
     try {
@@ -85,6 +96,24 @@ export default function FichaDetalle() {
     showToast(`Link copiado: ${link}`, 'success');
     setTimeout(() => setCopiedLink(false), 2000);
   };
+  
+  const togglePin = () => {
+    const pinnedFichas = JSON.parse(localStorage.getItem(`pinnedFichas_${user.id}`) || '[]');
+    let newPinnedFichas;
+    
+    if (isPinned) {
+      // Desanclar
+      newPinnedFichas = pinnedFichas.filter(fichaId => fichaId !== ficha.id);
+      showToast('Ficha desanclada', 'success');
+    } else {
+      // Anclar
+      newPinnedFichas = [...pinnedFichas, ficha.id];
+      showToast('Ficha anclada', 'success');
+    }
+    
+    localStorage.setItem(`pinnedFichas_${user.id}`, JSON.stringify(newPinnedFichas));
+    setIsPinned(!isPinned);
+  };
 
   const handleRegenerate = async () => {
     setConfirmDialog({
@@ -106,7 +135,7 @@ export default function FichaDetalle() {
     setExporting(true);
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(`${API_BASE}/api/export/ficha/${id}/asistencia`, {
+      const res = await fetch(`${API_BASE}/api/export/ficha/${id}/info`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (!res.ok) {
@@ -117,10 +146,10 @@ export default function FichaDetalle() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `Ficha${ficha.numero}_${new Date().toISOString().split('T')[0]}.csv`;
+      a.download = `Ficha${ficha.numero}_Info_${new Date().toISOString().split('T')[0]}.xlsx`;
       a.click();
       URL.revokeObjectURL(url);
-      showToast('Archivo exportado exitosamente', 'success');
+      showToast('Información de ficha exportada exitosamente', 'success');
     } catch (err) {
       showToast(err.message, 'error');
     } finally {
@@ -345,7 +374,7 @@ export default function FichaDetalle() {
 
   if (!ficha) return null;
 
-  const isAdmin = ficha.instructorAdminId === user?.id;
+  const isLider = ficha.instructorAdminId === user?.id;
   const isInstructor = ficha.instructores?.some(fi => fi.instructorId === user?.id);
   const COLOR = '#4285F4'; // Color principal azul
 
@@ -431,7 +460,20 @@ export default function FichaDetalle() {
             <ArrowLeft size={20} />
           </button>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Ficha {ficha.numero}</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Ficha {ficha.numero}</h1>
+              <button
+                onClick={togglePin}
+                className={`p-1.5 rounded-lg transition-all ${
+                  isPinned 
+                    ? 'text-yellow-500 hover:text-yellow-600 hover:bg-yellow-50 dark:hover:bg-yellow-900/20' 
+                    : 'text-gray-400 hover:text-yellow-500 hover:bg-gray-100 dark:hover:bg-gray-800'
+                }`}
+                title={isPinned ? 'Desanclar ficha' : 'Anclar ficha'}
+              >
+                <Star size={20} fill={isPinned ? 'currentColor' : 'none'} />
+              </button>
+            </div>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
               {ficha.nombre || ficha.nivel}
             </p>
@@ -443,10 +485,10 @@ export default function FichaDetalle() {
             onClick={handleExport} 
             disabled={exporting} 
             className="btn-secondary flex items-center gap-2"
-            title="Exportar asistencia"
+            title="Exportar información completa de la ficha"
           >
             {exporting ? <Loader size={16} className="animate-spin" /> : <Download size={16} />}
-            Exportar CSV
+            Exportar Info
           </button>
         </div>
       </div>
@@ -507,7 +549,7 @@ export default function FichaDetalle() {
         <div className="lg:col-span-2 card">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold text-gray-900 dark:text-white">Información General</h2>
-            {isAdmin && (
+            {isLider && (
               <button onClick={handleOpenEdit} className="btn-icon text-gray-400 hover:bg-gray-100" title="Editar">
                 <Edit2 size={16} />
               </button>
@@ -579,7 +621,7 @@ export default function FichaDetalle() {
               {copiedLink ? 'Link copiado' : 'Copiar link'}
             </button>
 
-            {isAdmin && (
+            {isLider && (
               <button 
                 onClick={handleRegenerate} 
                 className="btn-secondary w-full flex items-center justify-center gap-2 text-sm py-2 text-orange-600 hover:bg-orange-50"
@@ -803,48 +845,94 @@ export default function FichaDetalle() {
         )}
       </div>
 
-      {/* Instructores */}
-      <div className="card mb-6">
-        <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">
-          Instructores ({ficha.instructores?.length || 0})
-        </h3>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-          {ficha.instructores?.map(fi => {
-            const avatarSrc = resolveAvatar(fi.instructor.avatarUrl);
-            const isAdminInstructor = fi.role === 'admin';
-            
-            return (
-              <div 
-                key={fi.id} 
-                className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700"
-              >
-                {avatarSrc ? (
-                  <img 
-                    src={avatarSrc} 
-                    className="w-10 h-10 rounded-xl object-cover" 
-                    alt={fi.instructor.fullName} 
-                  />
-                ) : (
-                  <div 
-                    className="w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold text-white"
-                    style={{ backgroundColor: COLOR }}
-                  >
-                    {fi.instructor.fullName.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()}
-                  </div>
-                )}
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">
-                    {fi.instructor.fullName}
-                  </p>
-                  <p className="text-xs text-gray-400 truncate">{fi.instructor.email}</p>
+      {/* Administrador e Instructores */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        {/* Administrador */}
+        <div className="card">
+          <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">
+            Administrador
+          </h3>
+          {ficha.administrador ? (
+            <div 
+              className="flex items-center gap-3 p-3 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900/30"
+            >
+              {resolveAvatar(ficha.administrador.avatarUrl) ? (
+                <img 
+                  src={resolveAvatar(ficha.administrador.avatarUrl)} 
+                  className="w-12 h-12 rounded-xl object-cover" 
+                  alt={ficha.administrador.fullName} 
+                />
+              ) : (
+                <div 
+                  className="w-12 h-12 rounded-xl flex items-center justify-center text-sm font-bold text-white bg-red-600"
+                >
+                  {ficha.administrador.fullName.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()}
                 </div>
-                {isAdminInstructor && (
-                  <span className="badge badge-info shrink-0 text-xs">Admin</span>
-                )}
+              )}
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-gray-900 dark:text-gray-100 truncate">
+                  {ficha.administrador.fullName}
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{ficha.administrador.email}</p>
               </div>
-            );
-          })}
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <Users size={32} className="text-gray-300 mx-auto mb-2" />
+              <p className="text-sm text-gray-400">Sin administrador asignado</p>
+            </div>
+          )}
+        </div>
+
+        {/* Instructores */}
+        <div className="card">
+          <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">
+            Instructores ({ficha.instructores?.length || 0})
+          </h3>
+          {ficha.instructores?.length === 0 ? (
+            <div className="text-center py-8">
+              <Users size={32} className="text-gray-300 mx-auto mb-2" />
+              <p className="text-sm text-gray-400">Sin instructores asignados</p>
+            </div>
+          ) : (
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {ficha.instructores?.map(fi => {
+                const avatarSrc = resolveAvatar(fi.instructor.avatarUrl);
+                const isLiderInstructor = fi.instructorId === ficha.instructorAdminId;
+                
+                return (
+                  <div 
+                    key={fi.id} 
+                    className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700"
+                  >
+                    {avatarSrc ? (
+                      <img 
+                        src={avatarSrc} 
+                        className="w-10 h-10 rounded-xl object-cover" 
+                        alt={fi.instructor.fullName} 
+                      />
+                    ) : (
+                      <div 
+                        className="w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold text-white"
+                        style={{ backgroundColor: COLOR }}
+                      >
+                        {fi.instructor.fullName.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()}
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">
+                        {fi.instructor.fullName}
+                      </p>
+                      <p className="text-xs text-gray-400 truncate">{fi.instructor.email}</p>
+                    </div>
+                    {isLiderInstructor && (
+                      <span className="badge badge-info shrink-0 text-xs">Líder</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
 
@@ -1064,7 +1152,7 @@ export default function FichaDetalle() {
           open={modalPerfil} 
           onClose={handleClosePerfil} 
           aprendiz={selectedAprendiz}
-          isAdmin={isAdmin}
+          isAdmin={isLider}
           fichaId={id}
           materias={ficha.materias || []}
           onRemoveAprendiz={handleRemoveAprendiz}
@@ -1078,7 +1166,7 @@ export default function FichaDetalle() {
           open={modalMateriaInfo} 
           onClose={handleCloseMateriaInfo} 
           materia={selectedMateria}
-          isCreatorOrAdmin={selectedMateria.instructorId === user?.id || isAdmin}
+          isCreatorOrAdmin={selectedMateria.instructorId === user?.id || isLider}
           onUpdate={handleMateriaUpdate}
           onDelete={handleMateriaDelete}
         />

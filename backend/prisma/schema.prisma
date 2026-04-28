@@ -10,52 +10,64 @@ datasource db {
 }
 
 model User {
-  id              String               @id @default(cuid())
-  userType        String
-  fullName        String
-  document        String               @unique
-  email           String               @unique
-  password        String
-  avatarUrl       String?
-  nfcUid          String?              @unique
-  huellas         Int[]                @default([])
-  createdAt       DateTime             @default(now())
-  faceDescriptor  Float[]              @default([])
-  asistencias     Asistencia[]         @relation("InstructorAsistencia")
-  breakoutScore   BreakoutScore?
-  excusas         Excusa[]
-  fichasAdmin     Ficha[]              @relation("InstructorAdmin")
-  fichasInst      FichaInstructor[]
-  flappyScore     FlappyScore?
-  materias        Materia[]            @relation("InstructorMaterias")
-  memoryScore     MemoryScore?
-  reactionScore   ReactionScore?
-  registros       RegistroAsistencia[]
-  snakeScore      SnakeScore?
-  towerScore      TowerScore?
-  userSkins       UserSkin[]
-  wordleScore     WordleScore?
-  fichasApr       Ficha[]              @relation("Aprendices")
-  materiasEvitadas MateriaEvitada[]
+  id                   String               @id @default(cuid())
+  userType             String
+  fullName             String
+  document             String               @unique
+  email                String               @unique
+  password             String
+  avatarUrl            String?
+  nfcUid               String?              @unique
+  huellas              Int[]                @default([])
+  createdAt            DateTime             @default(now())
+  faceDescriptor       Float[]              @default([])
+  asistencias          Asistencia[]         @relation("InstructorAsistencia")
+  breakoutScore        BreakoutScore?
+  excusas              Excusa[]
+  fichasAdmin          Ficha[]              @relation("InstructorAdmin")
+  fichasAdministradas  Ficha[]              @relation("Administrador")
+  fichasInst           FichaInstructor[]
+  flappyScore          FlappyScore?
+  materias             Materia[]            @relation("InstructorMaterias")
+  memoryScore          MemoryScore?
+  reactionScore        ReactionScore?
+  registros            RegistroAsistencia[]
+  snakeScore           SnakeScore?
+  towerScore           TowerScore?
+  userSkins            UserSkin[]
+  wordleScore          WordleScore?
+  fichasApr            Ficha[]              @relation("Aprendices")
+  materiasEvitadas     MateriaEvitada[]
+  respuestasRapidas    RespuestaRapida[]    @relation("RespuestasRapidas")
+  papeleraEliminados   Papelera[]           @relation("EliminadoPor")
+  historialCambios     HistorialCambios[]   @relation("UsuarioCambios")
+  conflictosInstructor ConflictoHorario[]   @relation("ConflictosInstructor")
+  conflictosCreados    ConflictoHorario[]   @relation("ConflictosCreados")
 }
 
 model Ficha {
-  id                String            @id @default(cuid())
-  numero            String            @unique
+  id                String              @id @default(cuid())
+  numero            String              @unique
   nivel             String
   centro            String
   jornada           String
-  region            String            @default("")
-  duracion          Int               @default(0)
-  code              String            @unique
-  createdAt         DateTime          @default(now())
+  region            String              @default("")
+  duracion          Int                 @default(0)
+  code              String              @unique
+  createdAt         DateTime            @default(now())
   instructorAdminId String
-  nombre            String            @default("Programa sin nombre")
-  instructorAdmin   User              @relation("InstructorAdmin", fields: [instructorAdminId], references: [id])
+  administradorId   String?
+  nombre            String              @default("Programa sin nombre")
+  instructorAdmin   User                @relation("InstructorAdmin", fields: [instructorAdminId], references: [id])
+  administrador     User?               @relation("Administrador", fields: [administradorId], references: [id])
   instructores      FichaInstructor[]
   horarios          Horario[]
   materias          Materia[]
-  aprendices        User[]            @relation("Aprendices")
+  aprendices        User[]              @relation("Aprendices")
+  papelera          Papelera[]          @relation("FichaPapelera")
+  historialCambios  HistorialCambios[]  @relation("FichaHistorial")
+
+  @@index([administradorId])
 }
 
 model FichaInstructor {
@@ -77,6 +89,7 @@ model Materia {
   instructorId     String
   asistencias      Asistencia[]
   horarios         Horario[]
+  excusas          Excusa[]
   ficha            Ficha              @relation(fields: [fichaId], references: [id], onDelete: Cascade)
   instructor       User               @relation("InstructorMaterias", fields: [instructorId], references: [id])
   materiasEvitadas MateriaEvitada[]
@@ -110,26 +123,36 @@ model RegistroAsistencia {
   presente     Boolean    @default(true)
   metodo       String     @default("manual")
   timestamp    DateTime   @default(now())
+  justificado  Boolean    @default(false)
   asistenciaId String
   aprendizId   String
   aprendiz     User       @relation(fields: [aprendizId], references: [id], onDelete: Cascade)
   asistencia   Asistencia @relation(fields: [asistenciaId], references: [id], onDelete: Cascade)
+  excusas      Excusa[]
 
   @@unique([asistenciaId, aprendizId])
 }
 
 model Excusa {
-  id          String    @id @default(cuid())
-  motivo      String
-  descripcion String
-  fechas      String
-  estado      String    @default("Pendiente")
-  respuesta   String?
-  archivoUrl  String?
-  createdAt   DateTime  @default(now())
-  respondedAt DateTime?
-  aprendizId  String
-  aprendiz    User      @relation(fields: [aprendizId], references: [id], onDelete: Cascade)
+  id                   String              @id @default(cuid())
+  fechas               String
+  motivo               String
+  archivosUrls         String?
+  estado               String              @default("Pendiente")
+  respuesta            String?
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @default(now()) @updatedAt
+  respondedAt          DateTime?
+  aprendizId           String
+  materiaId            String
+  registroAsistenciaId String?
+  aprendiz             User                @relation(fields: [aprendizId], references: [id], onDelete: Cascade)
+  materia              Materia             @relation(fields: [materiaId], references: [id], onDelete: Cascade)
+  registroAsistencia   RegistroAsistencia? @relation(fields: [registroAsistenciaId], references: [id], onDelete: SetNull)
+
+  @@index([aprendizId])
+  @@index([materiaId])
+  @@index([estado])
 }
 
 model MateriaEvitada {
@@ -244,4 +267,73 @@ model SkinOrder {
 
   @@index([userId])
   @@index([externalId])
+}
+
+model RespuestaRapida {
+  id           String   @id @default(cuid())
+  instructorId String
+  texto        String
+  orden        Int
+  createdAt    DateTime @default(now())
+  instructor   User     @relation("RespuestasRapidas", fields: [instructorId], references: [id], onDelete: Cascade)
+
+  @@index([instructorId])
+}
+
+model Papelera {
+  id                String   @id @default(cuid())
+  tipoElemento      String
+  elementoId        String
+  fichaId           String
+  eliminadoPor      String
+  rolEliminador     String
+  fechaEliminacion  DateTime @default(now())
+  datosOriginales   Json
+  razonEliminacion  String?
+  ficha             Ficha    @relation("FichaPapelera", fields: [fichaId], references: [id], onDelete: Cascade)
+  usuario           User     @relation("EliminadoPor", fields: [eliminadoPor], references: [id], onDelete: Cascade)
+
+  @@index([fichaId])
+  @@index([eliminadoPor])
+  @@index([tipoElemento])
+  @@index([fechaEliminacion])
+}
+
+model HistorialCambios {
+  id              String   @id @default(cuid())
+  fichaId         String
+  usuarioId       String
+  tipoEvento      String
+  entidad         String
+  entidadId       String
+  descripcion     String
+  datosAnteriores Json?
+  datosNuevos     Json?
+  fechaHora       DateTime @default(now())
+  ipAddress       String?
+  ficha           Ficha    @relation("FichaHistorial", fields: [fichaId], references: [id], onDelete: Cascade)
+  usuario         User     @relation("UsuarioCambios", fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@index([fichaId])
+  @@index([usuarioId])
+  @@index([tipoEvento])
+  @@index([entidad])
+  @@index([fechaHora])
+}
+
+model ConflictoHorario {
+  id           String    @id @default(cuid())
+  instructorId String
+  dia          String
+  descripcion  String
+  horarioIds   Json      // Array de IDs de horarios en conflicto
+  resuelto     Boolean   @default(false)
+  creadoPor    String?
+  createdAt    DateTime  @default(now())
+  resolvedAt   DateTime?
+  instructor   User      @relation("ConflictosInstructor", fields: [instructorId], references: [id], onDelete: Cascade)
+  admin        User?     @relation("ConflictosCreados", fields: [creadoPor], references: [id], onDelete: SetNull)
+
+  @@index([instructorId])
+  @@index([resuelto])
 }

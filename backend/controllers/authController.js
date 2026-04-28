@@ -9,7 +9,7 @@ const register = async (req, res) => {
   if (!userType || !fullName || !document || !email || !password) {
     return res.status(400).json({ error: 'Todos los campos son obligatorios' });
   }
-  if (!['instructor', 'aprendiz'].includes(userType)) {
+  if (!['instructor', 'aprendiz', 'administrador'].includes(userType)) {
     return res.status(400).json({ error: 'Tipo de usuario inválido' });
   }
   try {
@@ -24,8 +24,8 @@ const register = async (req, res) => {
       data: { userType, fullName, document, email, password: hashedPassword }
     });
     
-    // Si es instructor, desbloquear todas las skins automáticamente
-    if (userType === 'instructor') {
+    // Si es instructor o administrador, desbloquear todas las skins automáticamente
+    if (userType === 'instructor' || userType === 'administrador') {
       try {
         const allSkins = await prisma.snakeSkin.findMany();
         
@@ -41,9 +41,9 @@ const register = async (req, res) => {
           skipDuplicates: true
         });
         
-        console.log(`✅ Todas las skins desbloqueadas para el instructor: ${newUser.fullName}`);
+        console.log(`✅ Todas las skins desbloqueadas para ${userType}: ${newUser.fullName}`);
       } catch (skinError) {
-        console.error('Error desbloqueando skins para instructor:', skinError);
+        console.error(`Error desbloqueando skins para ${userType}:`, skinError);
         // No fallar el registro si hay error con las skins
       }
     }
@@ -91,12 +91,27 @@ const getMe = async (req, res) => {
         id: true, fullName: true, email: true, document: true,
         userType: true, createdAt: true, avatarUrl: true,
         fichasApr: { select: { id: true }, take: 1 },
+        fichasInst: { select: { fichaId: true }, take: 1 },
       }
     });
     if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
-    const { fichasApr, ...rest } = user;
-    res.json({ user: { ...rest, fichaId: fichasApr?.[0]?.id || null } });
+    const { fichasApr, fichasInst, ...rest } = user;
+    
+    // Obtener fichaId: primero de aprendiz, si no existe, de instructor
+    const fichaId = fichasApr?.[0]?.id || fichasInst?.[0]?.fichaId || null;
+    
+    console.log('👤 User Profile:', { 
+      userId: user.id, 
+      fullName: user.fullName, 
+      userType: user.userType,
+      fichasApr: fichasApr,
+      fichasInst: fichasInst,
+      finalFichaId: fichaId 
+    });
+    
+    res.json({ user: { ...rest, fichaId } });
   } catch (err) {
+    console.error('❌ GetMe Error:', err);
     res.status(500).json({ error: 'Error: ' + err.message });
   }
 };

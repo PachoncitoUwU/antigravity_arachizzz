@@ -20,7 +20,18 @@ import InstructorHorario    from './pages/instructor/Horario';
 import InstructorAsistencia from './pages/instructor/Asistencia';
 import InstructorExcusas    from './pages/instructor/Excusas';
 
+import AdminDashboard from './pages/admin/Dashboard';
+import AdminFichas from './pages/admin/Fichas';
+import AdminFichaDetalle from './pages/admin/FichaDetalle';
+import AdminUsuarios from './pages/admin/Usuarios';
+import AdminHorarios from './pages/admin/Horarios';
+import AdminExcusas from './pages/admin/Excusas';
+import AdminReportes from './pages/admin/Reportes';
+import AdminPapelera from './pages/admin/Papelera';
+
 import AprendizDashboard  from './pages/aprendiz/Dashboard';
+import AprendizFichas     from './pages/aprendiz/Fichas';
+import AprendizFichaDetalle from './pages/aprendiz/FichaDetalle';
 import AprendizMaterias   from './pages/aprendiz/Materias';
 import AprendizHorario    from './pages/aprendiz/Horario';
 import AprendizAsistencia from './pages/aprendiz/Asistencia';
@@ -60,9 +71,24 @@ export default function App() {
                 <Route path="configuracion"  element={<Configuracion />} />
               </Route>
 
+              <Route path="/admin" element={<MainLayout allowedRoles={['administrador']} />}>
+                <Route index element={<Navigate to="dashboard" replace />} />
+                <Route path="dashboard"      element={<AdminDashboard />} />
+                <Route path="fichas"         element={<AdminFichas />} />
+                <Route path="fichas/:id"     element={<AdminFichaDetalle />} />
+                <Route path="usuarios"       element={<AdminUsuarios />} />
+                <Route path="horarios"       element={<AdminHorarios />} />
+                <Route path="excusas"        element={<AdminExcusas />} />
+                <Route path="reportes"       element={<AdminReportes />} />
+                <Route path="papelera"       element={<AdminPapelera />} />
+                <Route path="configuracion"  element={<Configuracion />} />
+              </Route>
+
               <Route path="/aprendiz" element={<MainLayout allowedRoles={['aprendiz']} />}>
                 <Route index element={<Navigate to="dashboard" replace />} />
                 <Route path="dashboard"      element={<AprendizDashboard />} />
+                <Route path="fichas"         element={<AprendizFichas />} />
+                <Route path="fichas/:id"     element={<AprendizFichaDetalle />} />
                 <Route path="materias"       element={<AprendizMaterias />} />
                 <Route path="horario"        element={<AprendizHorario />} />
                 <Route path="asistencia"     element={<AprendizAsistencia />} />

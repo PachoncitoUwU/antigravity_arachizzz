@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom';
 import { Users, BookOpen, Clock, FileText, Plus, ArrowRight, Calendar } from 'lucide-react';
 import fetchApi from '../../services/api';
 import StatCard from '../../components/StatCard';
+import ConflictosAlert from '../../components/ConflictosAlert';
 
 export default function InstructorDashboard() {
   const { user } = useContext(AuthContext);
@@ -46,6 +47,9 @@ export default function InstructorDashboard() {
           <p className="text-blue-100 text-sm mt-2 animate-fade-in" style={{ animationDelay: '200ms' }}>{t('dashboard', 'instructor')} · {new Date().toLocaleDateString(settings.language === 'en' ? 'en-US' : 'es-CO', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
         </div>
       </div>
+
+      {/* Alerta de conflictos */}
+      <ConflictosAlert userType={user?.userType} />
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

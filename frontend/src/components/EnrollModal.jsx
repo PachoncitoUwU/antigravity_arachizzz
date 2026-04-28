@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Modal from './Modal';
+import ConfirmModal from './ConfirmModal';
 import FaceCapture from './FaceCapture';
 import ConfirmDialog from './ConfirmDialog';
 import { socket } from '../services/socket';
@@ -163,7 +164,8 @@ export default function EnrollModal({ open, onClose, aprendiz }) {
   };
 
   return (
-    <Modal open={open} onClose={onClose} title="Credenciales Biométricas">
+    <>
+      <Modal open={open} onClose={onClose} title="Credenciales Biométricas">
       <div className="space-y-4 text-center pb-2">
         {aprendiz && (
           <p className="text-gray-600 mb-4 pb-4 border-b border-gray-100">

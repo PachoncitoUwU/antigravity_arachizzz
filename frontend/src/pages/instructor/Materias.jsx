@@ -153,8 +153,8 @@ export default function InstructorMaterias() {
                 {mats.map((m, mIdx) => {
                   const mCol = COLORES_FICHA[mIdx % COLORES_FICHA.length];
                   const isOwner = m.instructorId === user?.id;
-                  const isAdmin = ficha.instructorAdminId === user?.id;
-                  const canEdit = isOwner || isAdmin;
+                  const isLider = ficha.instructorAdminId === user?.id;
+                  const canEdit = isOwner || isLider;
                   const hasActive = m.asistencias?.some(a => a.activa);
                   return (
                     <div 

@@ -10,7 +10,8 @@ import Modal from '../../components/Modal';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import EmptyState from '../../components/EmptyState';
 import { useToast } from '../../context/ToastContext';
-import { Calendar, Plus, Trash2, Clock, Edit2, GripVertical, CheckCircle2, Check } from 'lucide-react';
+import { Calendar, Plus, Trash2, Clock, Edit2, GripVertical, CheckCircle2, Check, AlertTriangle } from 'lucide-react';
+import ConflictosAlert from '../../components/ConflictosAlert';
 
 const DIAS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 
@@ -129,7 +130,7 @@ function HorarioBloque({ horario, onEdit, isDragging, color, modoEditar, modoEli
 }
 
 // ─── Columna droppable ────────────────────────────────────────────────────────
-function DiaColumna({ dia, clases, onEdit, activeId, modoEditar, modoEliminar, horariosSeleccionados, onToggleSelect }) {
+function DiaColumna({ dia, clases, onEdit, activeId, modoEditar, modoEliminar, horariosSeleccionados, onToggleSelect, tieneConflicto }) {
   const { setNodeRef, isOver } = useDroppable({ id: dia });
 
   return (
@@ -137,11 +138,15 @@ function DiaColumna({ dia, clases, onEdit, activeId, modoEditar, modoEliminar, h
       ref={setNodeRef}
       className={`card dark:bg-gray-900 dark:border-gray-800 transition-all min-h-[160px] ${
         isOver ? 'ring-2 ring-[#4285F4] ring-offset-1 bg-blue-50/50 dark:bg-blue-900/10' : ''
-      }`}
+      } ${tieneConflicto ? 'border-2 border-red-400 dark:border-red-600' : ''}`}
     >
       <div className="flex items-center gap-2 mb-3 pb-2 border-b border-gray-100 dark:border-gray-800">
-        <div className="w-7 h-7 bg-blue-50 dark:bg-blue-900/30 rounded-lg flex items-center justify-center">
-          <Calendar size={14} className="text-[#4285F4]" />
+        <div className={`w-7 h-7 ${tieneConflicto ? 'bg-red-100 dark:bg-red-900/40' : 'bg-blue-50 dark:bg-blue-900/30'} rounded-lg flex items-center justify-center`}>
+          {tieneConflicto ? (
+            <AlertTriangle size={14} className="text-red-500" />
+          ) : (
+            <Calendar size={14} className="text-[#4285F4]" />
+          )}
         </div>
         <span className="font-bold text-sm text-gray-800 dark:text-gray-200">{dia}</span>
         <span className="ml-auto badge badge-gray">{clases.length}</span>
@@ -179,6 +184,8 @@ export default function InstructorHorario() {
   const { showToast } = useToast();
   const { user } = useContext(AuthContext);
   const [materias, setMaterias] = useState([]);
+  const [fichas, setFichas] = useState([]);
+  const [selectedFichaId, setSelectedFichaId] = useState('all');
   const [horarios, setHorarios] = useState([]);
   const [loading, setLoading] = useState(false);
   const [modalEdit, setModalEdit] = useState(false);
@@ -194,6 +201,8 @@ export default function InstructorHorario() {
   const [modoEliminar, setModoEliminar] = useState(false);
   const [horariosSeleccionados, setHorariosSeleccionados] = useState([]);
   const [confirmDialog, setConfirmDialog] = useState({ open: false, action: null, data: null });
+  const [conflictos, setConflictos] = useState([]);
+  const [diasConConflicto, setDiasConConflicto] = useState([]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
@@ -201,22 +210,26 @@ export default function InstructorHorario() {
 
   useEffect(() => {
     loadData();
+    loadConflictos();
   }, []);
 
-  const loadData = async () => {
-    setLoading(true);
+  const loadConflictos = async () => {
     try {
-      const [m, h] = await Promise.all([
-        fetchApi('/materias/my-materias'),
-        fetchApi('/horarios/my-horarios')
-      ]);
-      setMaterias(m.materias || []);
-      setHorarios(h.horarios || []);
+      const data = await fetchApi('/horarios/conflictos');
+      const conflictosData = data.conflictos || [];
+      setConflictos(conflictosData);
+      // Extraer días con conflictos
+      const dias = [...new Set(conflictosData.map(c => c.dia))];
+      setDiasConConflicto(dias);
     } catch (err) {
-      showToast(err.message || 'Error al cargar datos', 'error');
-    } finally {
-      setLoading(false);
+      console.error('Error cargando conflictos:', err);
     }
+  };
+
+  const handleConflictoDismissed = (conflictosActuales) => {
+    // Mantener los días con conflictos aunque se cierre la alerta
+    const dias = [...new Set(conflictosActuales.map(c => c.dia))];
+    setDiasConConflicto(dias);
   };
 
   const handleOpenEdit = (horario) => {
@@ -242,7 +255,7 @@ export default function InstructorHorario() {
 
   const handleEliminarSeleccionados = async () => {
     if (horariosSeleccionados.length === 0) {
-      showToast('Selecciona al menos una clase para eliminar', 'error');
+      showToast('Selecciona al menos una clase para enviar a papelera', 'error');
       return;
     }
 
@@ -377,13 +390,22 @@ export default function InstructorHorario() {
     ? materias.find(m => `materia-${m.id}` === activeId)
     : horarios.find(h => h.id === activeId);
 
+  // Filtrar materias y horarios por ficha seleccionada
+  const filteredMaterias = selectedFichaId === 'all' 
+    ? materias 
+    : materias.filter(m => m.fichaId === selectedFichaId);
+  
+  const filteredHorarios = selectedFichaId === 'all' 
+    ? horarios 
+    : horarios.filter(h => h.materia?.fichaId === selectedFichaId);
+
   const byDia = DIAS.map(dia => ({
     dia,
-    clases: horarios.filter(h => h.dia === dia).sort((a, b) => a.horaInicio.localeCompare(b.horaInicio))
+    clases: filteredHorarios.filter(h => h.dia === dia).sort((a, b) => a.horaInicio.localeCompare(b.horaInicio))
   }));
 
   // Identificar qué materias ya tienen horarios
-  const materiasConHorario = new Set(horarios.map(h => h.materiaId));
+  const materiasConHorario = new Set(filteredHorarios.map(h => h.materiaId));
 
   return (
     <div className="animate-fade-in">
@@ -396,9 +418,12 @@ export default function InstructorHorario() {
         }
       />
 
+      {/* Alerta de conflictos */}
+      <ConflictosAlert userType={user?.userType} onDismiss={handleConflictoDismissed} />
+
       {/* Botones de modo */}
       {!loading && materias.length > 0 && horarios.length > 0 && (
-        <div className="flex gap-3 mb-6">
+        <div className="flex flex-wrap gap-3 mb-6">
           <button
             onClick={() => {
               setModoEditar(!modoEditar);
@@ -427,7 +452,7 @@ export default function InstructorHorario() {
             }`}
           >
             <Trash2 size={16} />
-            {modoEliminar ? 'Cancelar' : 'Eliminar Clases'}
+            {modoEliminar ? 'Cancelar' : 'Enviar a Papelera'}
           </button>
 
           {modoEliminar && horariosSeleccionados.length > 0 && (
@@ -436,8 +461,24 @@ export default function InstructorHorario() {
               className="btn-primary bg-red-500 hover:bg-red-600 flex items-center gap-2"
             >
               <Trash2 size={16} />
-              Eliminar ({horariosSeleccionados.length})
+              Enviar a Papelera ({horariosSeleccionados.length})
             </button>
+          )}
+
+          {/* Selector de ficha */}
+          {fichas.length > 1 && (
+            <select 
+              value={selectedFichaId} 
+              onChange={(e) => setSelectedFichaId(e.target.value)}
+              className="input-field max-w-xs ml-auto"
+            >
+              <option value="all">Todas las fichas</option>
+              {fichas.map(f => (
+                <option key={f.id} value={f.id}>
+                  Ficha {f.numero} - {f.nombre}
+                </option>
+              ))}
+            </select>
           )}
         </div>
       )}
@@ -503,6 +544,7 @@ export default function InstructorHorario() {
                 modoEliminar={modoEliminar}
                 horariosSeleccionados={horariosSeleccionados}
                 onToggleSelect={toggleSeleccionHorario}
+                tieneConflicto={diasConConflicto.includes(dia)}
               />
             ))}
           </div>
