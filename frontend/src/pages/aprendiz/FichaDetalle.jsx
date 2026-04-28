@@ -501,47 +501,93 @@ export default function AprendizFichaDetalle() {
         )}
       </div>
 
-      {/* Instructores */}
-      <div className="card">
-        <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">
-          Instructores ({ficha.instructores?.length || 0})
-        </h3>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-          {ficha.instructores?.map(fi => {
-            const avatarSrc = resolveAvatar(fi.instructor.avatarUrl);
-            const isAdminInstructor = fi.role === 'admin';
-            
-            return (
-              <div 
-                key={fi.id} 
-                className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700"
-              >
-                {avatarSrc ? (
-                  <img 
-                    src={avatarSrc} 
-                    className="w-10 h-10 rounded-xl object-cover" 
-                    alt={fi.instructor.fullName} 
-                  />
-                ) : (
-                  <div 
-                    className="w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold text-white"
-                    style={{ backgroundColor: COLOR }}
-                  >
-                    {fi.instructor.fullName.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()}
-                  </div>
-                )}
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">
-                    {fi.instructor.fullName}
-                  </p>
+      {/* Administrador e Instructores */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        {/* Administrador */}
+        <div className="card">
+          <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">
+            Administrador
+          </h3>
+          {ficha.administrador ? (
+            <div 
+              className="flex items-center gap-3 p-3 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900/30"
+            >
+              {resolveAvatar(ficha.administrador.avatarUrl) ? (
+                <img 
+                  src={resolveAvatar(ficha.administrador.avatarUrl)} 
+                  className="w-12 h-12 rounded-xl object-cover" 
+                  alt={ficha.administrador.fullName} 
+                />
+              ) : (
+                <div 
+                  className="w-12 h-12 rounded-xl flex items-center justify-center text-sm font-bold text-white bg-red-600"
+                >
+                  {ficha.administrador.fullName.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()}
                 </div>
-                {isAdminInstructor && (
-                  <span className="badge badge-info shrink-0 text-xs">Admin</span>
-                )}
+              )}
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-gray-900 dark:text-gray-100 truncate">
+                  {ficha.administrador.fullName}
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{ficha.administrador.email}</p>
               </div>
-            );
-          })}
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <Users size={32} className="text-gray-300 mx-auto mb-2" />
+              <p className="text-sm text-gray-400">Sin administrador asignado</p>
+            </div>
+          )}
+        </div>
+
+        {/* Instructores */}
+        <div className="card">
+          <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">
+            Instructores ({ficha.instructores?.length || 0})
+          </h3>
+          {ficha.instructores?.length === 0 ? (
+            <div className="text-center py-8">
+              <Users size={32} className="text-gray-300 mx-auto mb-2" />
+              <p className="text-sm text-gray-400">Sin instructores asignados</p>
+            </div>
+          ) : (
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {ficha.instructores?.map(fi => {
+                const avatarSrc = resolveAvatar(fi.instructor.avatarUrl);
+                const isLiderInstructor = fi.instructorId === ficha.instructorAdminId;
+                
+                return (
+                  <div 
+                    key={fi.id} 
+                    className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700"
+                  >
+                    {avatarSrc ? (
+                      <img 
+                        src={avatarSrc} 
+                        className="w-10 h-10 rounded-xl object-cover" 
+                        alt={fi.instructor.fullName} 
+                      />
+                    ) : (
+                      <div 
+                        className="w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold text-white"
+                        style={{ backgroundColor: COLOR }}
+                      >
+                        {fi.instructor.fullName.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()}
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">
+                        {fi.instructor.fullName}
+                      </p>
+                    </div>
+                    {isLiderInstructor && (
+                      <span className="badge badge-info shrink-0 text-xs">Líder</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
 

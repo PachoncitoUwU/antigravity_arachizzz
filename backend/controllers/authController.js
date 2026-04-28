@@ -9,7 +9,7 @@ const register = async (req, res) => {
   if (!userType || !fullName || !document || !email || !password) {
     return res.status(400).json({ error: 'Todos los campos son obligatorios' });
   }
-  if (!['instructor', 'aprendiz'].includes(userType)) {
+  if (!['instructor', 'aprendiz', 'administrador'].includes(userType)) {
     return res.status(400).json({ error: 'Tipo de usuario inválido' });
   }
   try {
@@ -24,8 +24,8 @@ const register = async (req, res) => {
       data: { userType, fullName, document, email, password: hashedPassword }
     });
     
-    // Si es instructor, desbloquear todas las skins automáticamente
-    if (userType === 'instructor') {
+    // Si es instructor o administrador, desbloquear todas las skins automáticamente
+    if (userType === 'instructor' || userType === 'administrador') {
       try {
         const allSkins = await prisma.snakeSkin.findMany();
         
@@ -41,9 +41,9 @@ const register = async (req, res) => {
           skipDuplicates: true
         });
         
-        console.log(`✅ Todas las skins desbloqueadas para el instructor: ${newUser.fullName}`);
+        console.log(`✅ Todas las skins desbloqueadas para ${userType}: ${newUser.fullName}`);
       } catch (skinError) {
-        console.error('Error desbloqueando skins para instructor:', skinError);
+        console.error(`Error desbloqueando skins para ${userType}:`, skinError);
         // No fallar el registro si hay error con las skins
       }
     }

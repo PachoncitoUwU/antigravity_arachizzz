@@ -38,9 +38,9 @@ const deleteMateria = async (req, res) => {
       include: { ficha: true }
     });
     if (!materia) return res.status(404).json({ error: 'Materia no encontrada' });
-    const isAdmin = materia.ficha.instructorAdminId === instructorId;
+    const isLider = materia.ficha.instructorAdminId === instructorId;
     const isCreator = materia.instructorId === instructorId;
-    if (!isAdmin && !isCreator) {
+    if (!isLider && !isCreator) {
       return res.status(403).json({ error: 'Solo el creador o admin puede eliminar esta materia' });
     }
     await prisma.materia.delete({ where: { id } });
@@ -70,11 +70,11 @@ const updateMateria = async (req, res) => {
       return res.status(404).json({ error: 'Materia no encontrada' });
     }
     
-    const isAdmin = materia.ficha.instructorAdminId === instructorId;
+    const isLider = materia.ficha.instructorAdminId === instructorId;
     const isCreator = materia.instructorId === instructorId;
     
-    if (!isAdmin && !isCreator) {
-      return res.status(403).json({ error: 'Solo el creador o admin puede editar esta materia' });
+    if (!isLider && !isCreator) {
+      return res.status(403).json({ error: 'Solo el creador o líder puede editar esta materia' });
     }
     
     const updatedMateria = await prisma.materia.update({

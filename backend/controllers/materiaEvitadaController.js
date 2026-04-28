@@ -91,10 +91,11 @@ exports.updateMateriasEvitadas = async (req, res) => {
       return res.status(404).json({ error: 'Aprendiz no encontrado en esta ficha' });
     }
 
-    // Verificar que el usuario es admin de la ficha
-    const isAdmin = ficha.instructorAdminId === req.user.id;
-    if (!isAdmin) {
-      return res.status(403).json({ error: 'Solo el admin de la ficha puede gestionar materias evitadas' });
+    // Verificar que el usuario es líder o administrador de la ficha
+    const isLider = ficha.instructorAdminId === req.user.id;
+    const isAdmin = ficha.administradorId === req.user.id;
+    if (!isLider && !isAdmin) {
+      return res.status(403).json({ error: 'Solo el líder o administrador de la ficha puede gestionar materias evitadas' });
     }
 
     // Validar que al menos una materia quede activa

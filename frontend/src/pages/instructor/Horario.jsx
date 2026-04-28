@@ -11,6 +11,7 @@ import ConfirmModal from '../../components/ConfirmModal';
 import EmptyState from '../../components/EmptyState';
 import { useToast } from '../../context/ToastContext';
 import { Calendar, Plus, Trash2, Clock, Edit2, GripVertical, CheckCircle2, Check } from 'lucide-react';
+import ConflictosAlert from '../../components/ConflictosAlert';
 
 const DIAS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 
@@ -406,6 +407,9 @@ export default function InstructorHorario() {
           "Arrastra tus materias al calendario para crear horarios"
         }
       />
+
+      {/* Alerta de conflictos */}
+      <ConflictosAlert userType={user?.userType} />
 
       {/* Botones de modo */}
       {!loading && materias.length > 0 && horarios.length > 0 && (

@@ -62,7 +62,7 @@ export default function MateriasEvitadasModal({
         return;
       }
 
-      await fetchApi(`/fichas/${fichaId}/aprendices/${aprendiz.id}/materias-evitadas`, {
+      await fetchApi(`/materias-evitadas/fichas/${fichaId}/aprendices/${aprendiz.id}/materias-evitadas`, {
         method: 'PUT',
         body: JSON.stringify({ materiasEvitadasIds })
       });

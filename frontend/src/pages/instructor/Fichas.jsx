@@ -89,7 +89,7 @@ function FichaForm({ form, onChange, onSubmit, onCancel, saving, error, isEdit }
 // ─── FichaCard — tarjeta compacta clickeable ─────────────────────────────────
 function FichaCard({ ficha, currentUserId, onViewDetails, color, isPinned }) {
   const [copied, setCopied] = useState(false);
-  const isAdmin = ficha.instructorAdminId === currentUserId;
+  const isLider = ficha.instructorAdminId === currentUserId;
 
   const copyCode = (e) => {
     e.stopPropagation();
@@ -116,7 +116,7 @@ function FichaCard({ ficha, currentUserId, onViewDetails, color, isPinned }) {
             {isPinned && (
               <Star size={16} fill="currentColor" className="text-yellow-500" />
             )}
-            {isAdmin && <span className="badge badge-info">Admin</span>}
+            {isLider && <span className="badge badge-info">Líder</span>}
           </div>
           <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">{ficha.nombre}</p>
           <p className="text-xs text-gray-400">{ficha.nivel} · {ficha.centro}</p>
@@ -289,20 +289,20 @@ export default function InstructorFichas() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
           {fichas.map((f, idx) => {
-            const pinnedFichas = JSON.parse(localStorage.getItem(`pinnedFichas_${user?.id}`) || '[]');
-            const isPinned = pinnedFichas.includes(f.id);
-            
-            return (
-              <FichaCard 
-                key={f.id} 
-                ficha={f} 
-                currentUserId={user?.id}
-                color={COLORES[idx % COLORES.length]}
-                onViewDetails={handleViewDetails}
-                isPinned={isPinned}
-              />
-            );
-          })}
+              const pinnedFichas = JSON.parse(localStorage.getItem(`pinnedFichas_${user?.id}`) || '[]');
+              const isPinned = pinnedFichas.includes(f.id);
+              
+              return (
+                <FichaCard 
+                  key={f.id} 
+                  ficha={f} 
+                  currentUserId={user?.id}
+                  color={COLORES[idx % COLORES.length]}
+                  onViewDetails={handleViewDetails}
+                  isPinned={isPinned}
+                />
+              );
+            })}
         </div>
       )}
 

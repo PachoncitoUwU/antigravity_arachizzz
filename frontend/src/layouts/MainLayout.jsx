@@ -5,7 +5,7 @@ import { useSettings } from '../context/SettingsContext';
 import {
   LayoutDashboard, Users, BookOpen, Clock, FileText,
   LogOut, Menu, X, Calendar, ChevronRight, GraduationCap,
-  Settings, Moon, Sun
+  Settings, Moon, Sun, FolderOpen, BarChart3, Trash2, Search
 } from 'lucide-react';
 
 const INSTRUCTOR_LINKS = [
@@ -15,6 +15,16 @@ const INSTRUCTOR_LINKS = [
   { to: '/instructor/horario', icon: Calendar, labelKey: 'horario' },
   { to: '/instructor/asistencia', icon: Clock, labelKey: 'asistencia' },
   { to: '/instructor/excusas', icon: FileText, labelKey: 'excusas' },
+];
+
+const ADMIN_LINKS = [
+  { to: '/admin/dashboard', icon: LayoutDashboard, labelKey: 'dashboard' },
+  { to: '/admin/fichas', icon: FolderOpen, labelKey: 'fichas' },
+  { to: '/admin/usuarios', icon: Users, labelKey: 'usuarios' },
+  { to: '/admin/horarios', icon: Search, labelKey: 'horarios' },
+  { to: '/admin/excusas', icon: FileText, labelKey: 'excusas' },
+  { to: '/admin/reportes', icon: BarChart3, labelKey: 'reportes' },
+  { to: '/admin/papelera', icon: Trash2, labelKey: 'papelera' },
 ];
 
 const APRENDIZ_LINKS = [
@@ -33,7 +43,7 @@ function SidebarContent({ links, user, logout, onClose, configPath }) {
     ? user.fullName.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
     : user?.email?.[0]?.toUpperCase() || '?';
 
-  const roleColor = user?.userType === 'instructor' ? 'bg-[#4285F4]' : 'bg-[#34A853]';
+  const roleColor = user?.userType === 'instructor' ? 'bg-[#4285F4]' : user?.userType === 'administrador' ? 'bg-[#EA4335]' : 'bg-[#34A853]';
   const API_BASE = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3000';
   const avatarSrc = user?.avatarUrl ? (user.avatarUrl.startsWith('http') || user.avatarUrl.startsWith('data:') ? user.avatarUrl : `${API_BASE}${user.avatarUrl}`) : null;
 
@@ -128,7 +138,7 @@ export default function MainLayout({ allowedRoles }) {
     return <Navigate to={`/${user?.userType}/dashboard`} replace />;
   }
 
-  const links = user?.userType === 'instructor' ? INSTRUCTOR_LINKS : APRENDIZ_LINKS;
+  const links = user?.userType === 'instructor' ? INSTRUCTOR_LINKS : user?.userType === 'administrador' ? ADMIN_LINKS : APRENDIZ_LINKS;
   const configPath = `/${user?.userType}/configuracion`;
 
   return (

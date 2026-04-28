@@ -58,6 +58,8 @@ export const AuthProvider = ({ children }) => {
     localStorage.setItem('token', newToken);
     if (userData.userType === 'instructor') {
       navigate('/instructor/dashboard');
+    } else if (userData.userType === 'administrador') {
+      navigate('/admin/dashboard');
     } else {
       navigate('/aprendiz/dashboard');
     }

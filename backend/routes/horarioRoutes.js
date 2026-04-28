@@ -12,4 +12,11 @@ router.post('/', roleMiddleware(['instructor']), horarioController.createHorario
 router.put('/:id', roleMiddleware(['instructor']), horarioController.updateHorario);
 router.delete('/:id', roleMiddleware(['instructor']), horarioController.deleteHorario);
 
+// Rutas de admin
+router.put('/admin/:id', roleMiddleware(['administrador']), horarioController.updateHorarioAdmin);
+
+// Rutas de conflictos
+router.get('/conflictos', roleMiddleware(['instructor']), horarioController.getConflictosInstructor);
+router.put('/conflictos/:id/resolver', roleMiddleware(['instructor']), horarioController.resolverConflicto);
+
 module.exports = router;

@@ -65,7 +65,7 @@ const updateFicha = async (req, res) => {
     const ficha = await prisma.ficha.findUnique({ where: { id } });
     if (!ficha) return res.status(404).json({ error: 'Ficha no encontrada' });
     if (ficha.instructorAdminId !== instructorId) {
-      return res.status(403).json({ error: 'Solo el administrador puede editar la ficha' });
+      return res.status(403).json({ error: 'Solo el líder puede editar la ficha' });
     }
     
     // Si se está cambiando el número, verificar que no exista otra ficha con ese número
@@ -111,7 +111,7 @@ const regenerateCode = async (req, res) => {
     const ficha = await prisma.ficha.findUnique({ where: { id } });
     if (!ficha) return res.status(404).json({ error: 'Ficha no encontrada' });
     if (ficha.instructorAdminId !== instructorId) {
-      return res.status(403).json({ error: 'Solo el administrador puede regenerar el código' });
+      return res.status(403).json({ error: 'Solo el líder puede regenerar el código' });
     }
     const code = generarCodigoFicha();
     const updated = await prisma.ficha.update({ where: { id }, data: { code } });
@@ -126,11 +126,25 @@ const getUserFichas = async (req, res) => {
   const userId = req.user.id;
   const userType = req.user.userType;
   try {
+    let whereClause;
+    
+    if (userType === 'instructor') {
+      whereClause = { instructores: { some: { instructorId: userId } } };
+    } else if (userType === 'aprendiz') {
+      whereClause = { aprendices: { some: { id: userId } } };
+    } else if (userType === 'administrador') {
+      whereClause = { administradorId: userId };
+    }
+
     const userFichas = await prisma.ficha.findMany({
-      where: userType === 'instructor'
-        ? { instructores: { some: { instructorId: userId } } }
-        : { aprendices: { some: { id: userId } } },
+      where: whereClause,
       include: {
+        instructorAdmin: {
+          select: { id: true, fullName: true, email: true, avatarUrl: true }
+        },
+        administrador: {
+          select: { id: true, fullName: true, email: true, avatarUrl: true }
+        },
         instructores: { include: { instructor: { select: { id: true, fullName: true, email: true, avatarUrl: true } } } },
         aprendices: { select: { id: true, fullName: true, document: true, email: true, avatarUrl: true, nfcUid: true, huellas: true, faceDescriptor: true } },
         materias: { include: { instructor: { select: { fullName: true } } } }
@@ -149,6 +163,12 @@ const getFichaById = async (req, res) => {
     const ficha = await prisma.ficha.findUnique({
       where: { id },
       include: {
+        instructorAdmin: {
+          select: { id: true, fullName: true, email: true, avatarUrl: true }
+        },
+        administrador: {
+          select: { id: true, fullName: true, email: true, avatarUrl: true }
+        },
         instructores: { include: { instructor: { select: { id: true, fullName: true, email: true, avatarUrl: true } } } },
         aprendices: { 
           select: { 
@@ -176,6 +196,7 @@ const getFichaById = async (req, res) => {
         horarios: { include: { materia: { select: { nombre: true } } } }
       }
     });
+    
     if (!ficha) return res.status(404).json({ error: 'Ficha no encontrada' });
     res.json({ ficha });
   } catch (err) {
@@ -206,12 +227,23 @@ const joinFicha = async (req, res) => {
         where: { id: ficha.id },
         data: { aprendices: { connect: { id: userId } } }
       });
-    } else {
+    } else if (userType === 'instructor') {
       if (ficha.instructores.some(i => i.instructorId === userId)) {
         return res.status(400).json({ error: 'Ya estás en esta ficha como instructor.' });
       }
       await prisma.fichaInstructor.create({
         data: { fichaId: ficha.id, instructorId: userId, role: 'invitado' }
+      });
+    } else if (userType === 'administrador') {
+      if (ficha.administradorId === userId) {
+        return res.status(400).json({ error: 'Ya eres administrador de esta ficha' });
+      }
+      if (ficha.administradorId) {
+        return res.status(400).json({ error: 'Esta ficha ya tiene un administrador asignado' });
+      }
+      await prisma.ficha.update({
+        where: { id: ficha.id },
+        data: { administradorId: userId }
       });
     }
     res.json({ message: 'Te has unido a la ficha exitosamente' });
