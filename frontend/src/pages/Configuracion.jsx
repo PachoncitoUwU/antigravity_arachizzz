@@ -3,6 +3,7 @@ import { AuthContext } from '../context/AuthContext';
 import { useSettings } from '../context/SettingsContext';
 import { useToast } from '../context/ToastContext';
 import PageHeader from '../components/PageHeader';
+import ConfirmDialog from '../components/ConfirmDialog';
 import SerialConnect from '../components/SerialConnect';
 import ConfirmModal from '../components/ConfirmModal';
 import { Moon, Sun, Globe, Bell, User, Shield, Palette, Save, Camera, Loader, Usb } from 'lucide-react';
@@ -1609,17 +1610,18 @@ export default function Configuracion() {
   };
 
   const handleClearFingerprints = async () => {
-    setConfirmModal({ isOpen: true });
-  };
-
-  const confirmClearFingerprints = async () => {
-    try {
-      const res  = await fetch(`${API_BASE}/api/serial/clear-fingerprints`, { method:'POST', headers:{ Authorization:`Bearer ${localStorage.getItem('token')}` } });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      showToast(data.message || 'Comando enviado al sensor', 'success');
-      setShowClear(false);
-    } catch (err) { showToast(err.message, 'error'); }
+    setConfirmDialog({
+      open: true,
+      action: async () => {
+        try {
+          const res  = await fetch(`${API_BASE}/api/serial/clear-fingerprints`, { method:'POST', headers:{ Authorization:`Bearer ${localStorage.getItem('token')}` } });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error);
+          showToast(data.message || 'Comando enviado al sensor', 'success');
+          setShowClear(false);
+        } catch (err) { showToast(err.message, 'error'); }
+      }
+    });
   };
 
   // Limpiar todos los timers al desmontar el componente

@@ -1,63 +1,41 @@
-import React, { useEffect } from 'react';
-import { X, AlertTriangle } from 'lucide-react';
+import React from 'react';
+import { AlertTriangle, X } from 'lucide-react';
 
-export default function ConfirmDialog({ open, onClose, onConfirm, title, message, confirmText = 'Confirmar', cancelText = 'Cancelar', type = 'warning' }) {
-  useEffect(() => {
-    if (open) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
-    }
-    return () => {
-      document.body.style.overflow = 'unset';
-    };
-  }, [open]);
-
+export default function ConfirmDialog({ open, onClose, onConfirm, title, message, confirmText = "Confirmar", cancelText = "Cancelar", danger = false }) {
   if (!open) return null;
-  
-  const colors = {
-    warning: 'text-yellow-600 bg-yellow-50',
-    danger: 'text-red-600 bg-red-50',
-    info: 'text-blue-600 bg-blue-50'
-  };
 
   return (
-    <div 
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        width: '100vw',
-        height: '100vh',
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-        backdropFilter: 'blur(4px)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 9999
-      }}
-      onClick={onClose}
-    >
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 relative mx-4" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-bold text-gray-900">{title}</h2>
-          <button onClick={onClose} className="btn-icon text-gray-400 hover:bg-gray-100">
-            <X size={18} />
-          </button>
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-fade-in">
+      <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-md w-full animate-scale-in border border-gray-100 dark:border-gray-800">
+        <div className="p-6">
+          <div className="flex items-start gap-4">
+            <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${danger ? 'bg-red-100 dark:bg-red-900/20' : 'bg-blue-100 dark:bg-blue-900/20'}`}>
+              <AlertTriangle size={24} className={danger ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'} />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">{title}</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400">{message}</p>
+            </div>
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
+              <X size={20} />
+            </button>
+          </div>
         </div>
-        <div className="space-y-4">
-          <div className={`flex items-center gap-3 p-3 rounded-lg ${colors[type]}`}>
-            <AlertTriangle size={24} />
-            <p className="text-sm font-medium">{message}</p>
-          </div>
-          <div className="flex gap-3">
-            <button onClick={onClose} className="btn-secondary flex-1">
-              {cancelText}
-            </button>
-            <button onClick={() => { onConfirm(); onClose(); }} className="btn-primary flex-1">
-              {confirmText}
-            </button>
-          </div>
+        <div className="flex gap-3 p-6 pt-0">
+          <button 
+            onClick={onClose}
+            className="flex-1 px-4 py-2.5 rounded-xl border-2 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 font-semibold hover:bg-gray-50 dark:hover:bg-gray-800 transition-all">
+            {cancelText}
+          </button>
+          <button 
+            onClick={() => { onConfirm(); onClose(); }}
+            className={`flex-1 px-4 py-2.5 rounded-xl font-semibold transition-all shadow-md ${
+              danger 
+                ? 'bg-red-500 hover:bg-red-600 text-white hover:shadow-red-500/50' 
+                : 'bg-blue-500 hover:bg-blue-600 text-white hover:shadow-blue-500/50'
+            }`}>
+            {confirmText}
+          </button>
         </div>
       </div>
     </div>

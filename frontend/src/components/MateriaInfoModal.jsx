@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import Modal from './Modal';
-import ConfirmModal from './ConfirmModal';
+import ConfirmDialog from './ConfirmDialog';
 import fetchApi from '../services/api';
 import { BookOpen, User, Clock, Edit2, Trash2, Loader } from 'lucide-react';
 
@@ -21,7 +21,7 @@ export default function MateriaInfoModal({
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState('');
-  const [confirmModal, setConfirmModal] = useState({ isOpen: false });
+  const [confirmDialog, setConfirmDialog] = useState({ open: false, action: null });
 
   if (!materia) return null;
 
@@ -72,27 +72,27 @@ export default function MateriaInfoModal({
   };
 
   const handleDelete = async () => {
-    setConfirmModal({ isOpen: true });
-  };
+    setConfirmDialog({
+      open: true,
+      action: async () => {
+        try {
+          setDeleting(true);
+          setError('');
 
-  const confirmDelete = async () => {
-    try {
-      setDeleting(true);
-      setError('');
-      setConfirmModal({ isOpen: false }); // Cerrar modal de confirmación
+          await fetchApi(`/materias/${materia.id}`, {
+            method: 'DELETE'
+          });
 
-      await fetchApi(`/materias/${materia.id}`, {
-        method: 'DELETE'
-      });
-
-      if (onDelete) {
-        onDelete();
+          if (onDelete) {
+            onDelete();
+          }
+          onClose();
+        } catch (err) {
+          setError(err.message || 'Error al eliminar la materia');
+          setDeleting(false);
+        }
       }
-      onClose();
-    } catch (err) {
-      setError(err.message || 'Error al enviar la materia a papelera');
-      setDeleting(false);
-    }
+    });
   };
 
   // Formatear horarios
@@ -270,37 +270,16 @@ export default function MateriaInfoModal({
       </div>
     </Modal>
 
-    <ConfirmModal
-      isOpen={confirmModal.isOpen}
-      onClose={() => setConfirmModal({ isOpen: false })}
-      onConfirm={confirmDelete}
-      title="¿Enviar materia a papelera?"
-      message={`¿Estás seguro de enviar la materia "${materia.nombre}" a la papelera? Podrá ser recuperada desde la sección de papelera.`}
-      confirmText="Enviar a Papelera"
+    <ConfirmDialog
+      open={confirmDialog.open}
+      onClose={() => setConfirmDialog({ open: false, action: null })}
+      onConfirm={confirmDialog.action}
+      title="Eliminar Materia"
+      message={`¿Estás seguro de eliminar la materia "${materia.nombre}"? Esta acción no se puede deshacer.`}
+      confirmText="Eliminar"
       cancelText="Cancelar"
-      variant="danger"
+      danger={true}
     />
   </>
-  );
-}
-
-// Agregar el ConfirmModal fuera del return principal
-function MateriaInfoModalWithConfirm(props) {
-  const [confirmModal, setConfirmModal] = React.useState({ isOpen: false });
-  
-  return (
-    <>
-      <MateriaInfoModal {...props} />
-      <ConfirmModal
-        isOpen={confirmModal.isOpen}
-        onClose={() => setConfirmModal({ isOpen: false })}
-        onConfirm={() => {}}
-        title="¿Enviar materia a papelera?"
-        message="Podrá ser recuperada desde la sección de papelera."
-        confirmText="Enviar a Papelera"
-        cancelText="Cancelar"
-        variant="danger"
-      />
-    </>
   );
 }

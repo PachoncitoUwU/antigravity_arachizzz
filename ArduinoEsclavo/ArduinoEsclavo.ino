@@ -13,13 +13,15 @@ Adafruit_Fingerprint finger = Adafruit_Fingerprint(&mySerial);
 const int PIN_BUZZER = 6;
 const int PIN_SWITCH = 7;
 const int PIN_RX_ESP = 8;
-const int PIN_TX_ESP = 9;  // Via divisor de tensión hacia ESP8266 D2
+const int PIN_TX_ESP = 9;
 
 // Comunicación con ESP8266
-SoftwareSerial espSerial(PIN_RX_ESP, PIN_TX_ESP); // RX, TX
+SoftwareSerial espSerial(PIN_RX_ESP, PIN_TX_ESP);
 
 // --- PROTOTIPOS ---
-void sonidoExito();
+void sonidoNFC();
+void sonidoHuella();
+void sonidoEnrolamiento();
 void sonidoError();
 bool enrolar(int id);
 String hexUID(uint8_t* uid, uint8_t len);
@@ -32,7 +34,7 @@ void setup() {
   pinMode(PIN_SWITCH, INPUT_PULLUP);
 
   Serial.println(F("\n-------------------------------------------"));
-  Serial.println(F("SISTEMA ARACHIZ - MODO ESCLAVO V7.0"));
+  Serial.println(F("SISTEMA ARACHIZ - MODO ESCLAVO V7.1"));
   Serial.println(F("-------------------------------------------"));
 
   Serial.println(F("DEBUG: Iniciando NFC..."));
@@ -64,7 +66,7 @@ void enviarEvento(String msg) {
   bool modoESP = (digitalRead(PIN_SWITCH) == LOW);
   if (modoESP) {
     espSerial.listen();
-    espSerial.println(msg);
+    espSerial.println("MODO:RENDER|" + msg);
   } else {
     Serial.println(msg);
   }
@@ -79,7 +81,7 @@ void loop() {
       mySerial.listen();
       finger.emptyDatabase();
       Serial.println("DEBUG: Base de datos borrada con exito");
-      sonidoExito();
+      sonidoEnrolamiento();
     } else if (comando.startsWith("ENROLL ")) {
       int idx = comando.substring(7).toInt();
       if (idx > 0 && idx < 128) {
@@ -107,8 +109,8 @@ void loop() {
   if (success) {
     String uid_str = hexUID(uid, uidLength);
     enviarEvento("READ_NFC: " + uid_str);
-    sonidoExito();
-    delay(1000);
+    sonidoNFC();
+    delay(500);
     nfc_hardware.SAMConfig();
   }
 
@@ -118,12 +120,12 @@ void loop() {
     if (finger.image2Tz() == FINGERPRINT_OK) {
       if (finger.fingerFastSearch() == FINGERPRINT_OK) {
         enviarEvento("READ_FINGER: " + String(finger.fingerID));
-        sonidoExito();
-        delay(1000);
+        sonidoHuella();
+        delay(500);
       } else {
         Serial.println("DEBUG: Huella no reconocida por el sensor");
         sonidoError();
-        delay(1000);
+        delay(500);
       }
     }
   }
@@ -183,8 +185,7 @@ bool enrolar(int id) {
 
   if (finger.createModel() == FINGERPRINT_OK) {
     if (finger.storeModel(id) == FINGERPRINT_OK) {
-      tone(PIN_BUZZER, 2000, 200);
-      enviarEvento("ENROLL_SUCCESS: " + String(id));
+      sonidoEnrolamiento();
       return true;
     }
   }
@@ -206,5 +207,30 @@ String hexUID(uint8_t* uid, uint8_t len) {
   return s;
 }
 
-void sonidoExito() { tone(PIN_BUZZER, 2500, 400); }
-void sonidoError() { tone(PIN_BUZZER, 500, 300); delay(100); tone(PIN_BUZZER, 500, 300); }
+void sonidoNFC() {
+  tone(PIN_BUZZER, 2000, 150);
+  delay(200);
+  tone(PIN_BUZZER, 2500, 150);
+}
+
+void sonidoHuella() {
+  tone(PIN_BUZZER, 1800, 100);
+  delay(150);
+  tone(PIN_BUZZER, 2200, 100);
+  delay(150);
+  tone(PIN_BUZZER, 2500, 100);
+}
+
+void sonidoEnrolamiento() {
+  tone(PIN_BUZZER, 2000, 100);
+  delay(120);
+  tone(PIN_BUZZER, 2400, 100);
+  delay(120);
+  tone(PIN_BUZZER, 2800, 200);
+}
+
+void sonidoError() {
+  tone(PIN_BUZZER, 500, 300);
+  delay(100);
+  tone(PIN_BUZZER, 500, 300);
+}

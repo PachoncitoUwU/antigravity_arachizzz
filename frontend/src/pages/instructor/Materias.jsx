@@ -5,7 +5,7 @@ import fetchApi from '../../services/api';
 import PageHeader from '../../components/PageHeader';
 import Modal from '../../components/Modal';
 import MateriaInfoModal from '../../components/MateriaInfoModal';
-import ConfirmModal from '../../components/ConfirmModal';
+import ConfirmDialog from '../../components/ConfirmDialog';
 import EmptyState from '../../components/EmptyState';
 import { useToast } from '../../context/ToastContext';
 import { BookOpen, Plus } from 'lucide-react';
@@ -31,7 +31,7 @@ export default function InstructorMaterias() {
   const [error, setError] = useState('');
   const [selectedMateria, setSelectedMateria] = useState(null);
   const [infoModalOpen, setInfoModalOpen] = useState(false);
-  const [confirmModal, setConfirmModal] = useState({ isOpen: false, materiaId: null });
+  const [confirmDialog, setConfirmDialog] = useState({ open: false, action: null });
 
   const load = async () => {
     try {
@@ -62,17 +62,18 @@ export default function InstructorMaterias() {
   };
 
   const handleDelete = async (id) => {
-    setConfirmModal({ isOpen: true, materiaId: id });
-  };
-
-  const confirmDelete = async () => {
-    try {
-      await fetchApi(`/materias/${confirmModal.materiaId}`, { method: 'DELETE' });
-      showToast('Materia enviada a la papelera', 'success');
-      setInfoModalOpen(false);
-      setSelectedMateria(null);
-      load();
-    } catch (err) { showToast(err.message, 'error'); }
+    setConfirmDialog({
+      open: true,
+      action: async () => {
+        try {
+          await fetchApi(`/materias/${id}`, { method: 'DELETE' });
+          showToast('Materia eliminada', 'success');
+          setInfoModalOpen(false);
+          setSelectedMateria(null);
+          load();
+        } catch (err) { showToast(err.message, 'error'); }
+      }
+    });
   };
 
   const handleMateriaClick = (materia, ficha) => {
@@ -221,15 +222,15 @@ export default function InstructorMaterias() {
         onDelete={handleDeleteMateria}
       />
 
-      <ConfirmModal
-        isOpen={confirmModal.isOpen}
-        onClose={() => setConfirmModal({ isOpen: false, materiaId: null })}
-        onConfirm={confirmDelete}
-        title="¿Enviar materia a papelera?"
-        message="¿Enviar esta materia a la papelera? Podrá ser recuperada desde la sección de papelera."
-        confirmText="Enviar a Papelera"
+      <ConfirmDialog
+        open={confirmDialog.open}
+        onClose={() => setConfirmDialog({ open: false, action: null })}
+        onConfirm={confirmDialog.action}
+        title="Eliminar Materia"
+        message="¿Eliminar esta materia? Se eliminarán también sus sesiones de asistencia."
+        confirmText="Eliminar"
         cancelText="Cancelar"
-        variant="danger"
+        danger={true}
       />
     </div>
   );

@@ -692,13 +692,21 @@ export default function InstructorAsistencia() {
 
       {/* Vista cuando NO hay sesión activa */}
       {!activeSession && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
           <div className="card-hover dark:bg-gray-900 dark:border-gray-800 text-center p-8 hover:shadow-2xl transition-all duration-300 group animate-scale-in" style={{ animationDelay: '100ms' }}>
             <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center mx-auto mb-4 shadow-lg group-hover:scale-110 group-hover:shadow-blue-500/50 transition-all duration-300 group-hover:rotate-6">
               <Camera size={32} className="text-white" />
             </div>
             <h3 className="font-bold text-gray-900 dark:text-white mb-2 group-hover:text-blue-500 transition-colors">Reconocimiento Facial</h3>
             <p className="text-sm text-gray-500 dark:text-gray-400">Detecta automáticamente con IA</p>
+          </div>
+
+          <div className="card-hover dark:bg-gray-900 dark:border-gray-800 text-center p-8 hover:shadow-2xl transition-all duration-300 group animate-scale-in" style={{ animationDelay: '150ms' }}>
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center mx-auto mb-4 shadow-lg group-hover:scale-110 group-hover:shadow-indigo-500/50 transition-all duration-300 group-hover:rotate-6">
+              <Wifi size={32} className="text-white" />
+            </div>
+            <h3 className="font-bold text-gray-900 dark:text-white mb-2 group-hover:text-indigo-500 transition-colors">Lector NFC</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Tarjeta o llavero NFC</p>
           </div>
 
           <div className="card-hover dark:bg-gray-900 dark:border-gray-800 text-center p-8 hover:shadow-2xl transition-all duration-300 group animate-scale-in" style={{ animationDelay: '200ms' }}>
@@ -709,7 +717,7 @@ export default function InstructorAsistencia() {
             <p className="text-sm text-gray-500 dark:text-gray-400">Escanea desde el celular</p>
           </div>
 
-          <div className="card-hover dark:bg-gray-900 dark:border-gray-800 text-center p-8 hover:shadow-2xl transition-all duration-300 group animate-scale-in" style={{ animationDelay: '300ms' }}>
+          <div className="card-hover dark:bg-gray-900 dark:border-gray-800 text-center p-8 hover:shadow-2xl transition-all duration-300 group animate-scale-in" style={{ animationDelay: '250ms' }}>
             <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center mx-auto mb-4 shadow-lg group-hover:scale-110 group-hover:shadow-green-500/50 transition-all duration-300 group-hover:rotate-6">
               <Fingerprint size={32} className="text-white" />
             </div>
@@ -717,7 +725,7 @@ export default function InstructorAsistencia() {
             <p className="text-sm text-gray-500 dark:text-gray-400">Sensor biométrico rápido</p>
           </div>
 
-          <div className="card-hover dark:bg-gray-900 dark:border-gray-800 text-center p-8 hover:shadow-2xl transition-all duration-300 group animate-scale-in" style={{ animationDelay: '400ms' }}>
+          <div className="card-hover dark:bg-gray-900 dark:border-gray-800 text-center p-8 hover:shadow-2xl transition-all duration-300 group animate-scale-in" style={{ animationDelay: '300ms' }}>
             <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center mx-auto mb-4 shadow-lg group-hover:scale-110 group-hover:shadow-purple-500/50 transition-all duration-300 group-hover:rotate-6">
               <UserPlus size={32} className="text-white" />
             </div>

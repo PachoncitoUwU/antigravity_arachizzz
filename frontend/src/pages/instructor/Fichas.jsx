@@ -4,7 +4,7 @@ import { AuthContext } from '../../context/AuthContext';
 import fetchApi from '../../services/api';
 import PageHeader from '../../components/PageHeader';
 import Modal from '../../components/Modal';
-import ConfirmModal from '../../components/ConfirmModal';
+import ConfirmDialog from '../../components/ConfirmDialog';
 import EmptyState from '../../components/EmptyState';
 import EnrollModal from '../../components/EnrollModal';
 import { useToast } from '../../context/ToastContext';
@@ -168,7 +168,7 @@ export default function InstructorFichas() {
   const [joinCode, setJoinCode]   = useState('');
   const [saving, setSaving]       = useState(false);
   const [error, setError]         = useState('');
-  const [confirmModal, setConfirmModal] = useState({ isOpen: false, fichaId: null });
+  const [confirmDialog, setConfirmDialog] = useState({ open: false, action: null, data: null });
 
   const load = useCallback(async () => {
     try {
@@ -240,14 +240,17 @@ export default function InstructorFichas() {
   };
 
   const handleRegenerate = async (id) => {
-    setConfirmModal({ isOpen: true, fichaId: id });
-  };
-
-  const confirmRegenerate = async () => {
-    try {
-      await fetchApi(`/fichas/${confirmModal.fichaId}/regenerate-code`, { method: 'POST' });
-      showToast('Código regenerado', 'success'); load();
-    } catch (err) { showToast(err.message, 'error'); }
+    setConfirmDialog({
+      open: true,
+      action: async () => {
+        try {
+          await fetchApi(`/fichas/${id}/regenerate-code`, { method: 'POST' });
+          showToast('Código regenerado', 'success'); 
+          load();
+        } catch (err) { showToast(err.message, 'error'); }
+      },
+      data: { id }
+    });
   };
 
   const handleViewDetails = (fichaId) => {
@@ -329,15 +332,15 @@ export default function InstructorFichas() {
         </form>
       </Modal>
 
-      <ConfirmModal
-        isOpen={confirmModal.isOpen}
-        onClose={() => setConfirmModal({ isOpen: false, fichaId: null })}
-        onConfirm={confirmRegenerate}
-        title="¿Regenerar código?"
-        message="El código anterior dejará de funcionar."
+      <ConfirmDialog
+        open={confirmDialog.open}
+        onClose={() => setConfirmDialog({ open: false, action: null, data: null })}
+        onConfirm={confirmDialog.action}
+        title="Regenerar Código"
+        message="¿Regenerar el código? El anterior dejará de funcionar."
         confirmText="Regenerar"
         cancelText="Cancelar"
-        variant="warning"
+        danger={true}
       />
     </div>
   );

@@ -7,7 +7,7 @@ import fetchApi from '../../services/api';
 import { AuthContext } from '../../context/AuthContext';
 import PageHeader from '../../components/PageHeader';
 import Modal from '../../components/Modal';
-import ConfirmModal from '../../components/ConfirmModal';
+import ConfirmDialog from '../../components/ConfirmDialog';
 import EmptyState from '../../components/EmptyState';
 import { useToast } from '../../context/ToastContext';
 import { Calendar, Plus, Trash2, Clock, Edit2, GripVertical, CheckCircle2, Check, AlertTriangle } from 'lucide-react';
@@ -200,7 +200,7 @@ export default function InstructorHorario() {
   const [modoEditar, setModoEditar] = useState(false);
   const [modoEliminar, setModoEliminar] = useState(false);
   const [horariosSeleccionados, setHorariosSeleccionados] = useState([]);
-  const [confirmModal, setConfirmModal] = useState({ isOpen: false, count: 0 });
+  const [confirmDialog, setConfirmDialog] = useState({ open: false, action: null, data: null });
   const [conflictos, setConflictos] = useState([]);
   const [diasConConflicto, setDiasConConflicto] = useState([]);
 
@@ -232,24 +232,6 @@ export default function InstructorHorario() {
     setDiasConConflicto(dias);
   };
 
-  const loadData = async () => {
-    setLoading(true);
-    try {
-      const [m, h, f] = await Promise.all([
-        fetchApi('/materias/my-materias'),
-        fetchApi('/horarios/my-horarios'),
-        fetchApi('/fichas/my-fichas')
-      ]);
-      setMaterias(m.materias || []);
-      setHorarios(h.horarios || []);
-      setFichas(f.fichas || []);
-    } catch (err) {
-      showToast(err.message || 'Error al cargar datos', 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleOpenEdit = (horario) => {
     if (!modoEditar) return; // Solo editar si el modo está activo
     setFormEdit({
@@ -277,21 +259,23 @@ export default function InstructorHorario() {
       return;
     }
 
-    setConfirmModal({ isOpen: true, count: horariosSeleccionados.length });
-  };
-
-  const confirmEliminarSeleccionados = async () => {
-    try {
-      await Promise.all(
-        horariosSeleccionados.map(id => fetchApi(`/horarios/${id}`, { method: 'DELETE' }))
-      );
-      setHorarios(prev => prev.filter(h => !horariosSeleccionados.includes(h.id)));
-      setHorariosSeleccionados([]);
-      setModoEliminar(false);
-      showToast(`${confirmModal.count} clase(s) enviada(s) a la papelera`, 'success');
-    } catch (err) {
-      showToast(err.message, 'error');
-    }
+    setConfirmDialog({
+      open: true,
+      action: async () => {
+        try {
+          await Promise.all(
+            horariosSeleccionados.map(id => fetchApi(`/horarios/${id}`, { method: 'DELETE' }))
+          );
+          setHorarios(prev => prev.filter(h => !horariosSeleccionados.includes(h.id)));
+          setHorariosSeleccionados([]);
+          setModoEliminar(false);
+          showToast(`${horariosSeleccionados.length} clase(s) eliminada(s)`, 'success');
+        } catch (err) {
+          showToast(err.message, 'error');
+        }
+      },
+      data: { count: horariosSeleccionados.length }
+    });
   };
 
   const cancelarModoEliminar = () => {
@@ -691,15 +675,15 @@ export default function InstructorHorario() {
         </form>
       </Modal>
 
-      <ConfirmModal
-        isOpen={confirmModal.isOpen}
-        onClose={() => setConfirmModal({ isOpen: false, count: 0 })}
-        onConfirm={confirmEliminarSeleccionados}
-        title="¿Enviar clases a papelera?"
-        message={`¿Enviar ${confirmModal.count} clase(s) a la papelera? Podrán ser recuperadas desde la sección de papelera.`}
+      <ConfirmDialog
+        open={confirmDialog.open}
+        onClose={() => setConfirmDialog({ open: false, action: null, data: null })}
+        onConfirm={confirmDialog.action}
+        title="Eliminar Clases"
+        message={`¿Eliminar ${confirmDialog.data?.count || 0} clase(s) del horario? Esta acción no se puede deshacer.`}
         confirmText="Eliminar"
         cancelText="Cancelar"
-        variant="danger"
+        danger={true}
       />
     </div>
   );
