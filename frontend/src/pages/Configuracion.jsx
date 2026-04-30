@@ -5,7 +5,6 @@ import { useToast } from '../context/ToastContext';
 import PageHeader from '../components/PageHeader';
 import ConfirmDialog from '../components/ConfirmDialog';
 import SerialConnect from '../components/SerialConnect';
-import ConfirmModal from '../components/ConfirmModal';
 import { Moon, Sun, Globe, Bell, User, Shield, Palette, Save, Camera, Loader, Usb } from 'lucide-react';
 import TowerStack   from '../games/TowerStack';
 import MemoryFlash  from '../games/MemoryFlash';
