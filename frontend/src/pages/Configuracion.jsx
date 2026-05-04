@@ -5,7 +5,6 @@ import { useToast } from '../context/ToastContext';
 import PageHeader from '../components/PageHeader';
 import ConfirmDialog from '../components/ConfirmDialog';
 import SerialConnect from '../components/SerialConnect';
-import ConfirmModal from '../components/ConfirmModal';
 import { Moon, Sun, Globe, Bell, User, Shield, Palette, Save, Camera, Loader, Usb } from 'lucide-react';
 import TowerStack   from '../games/TowerStack';
 import MemoryFlash  from '../games/MemoryFlash';
@@ -1596,7 +1595,7 @@ export default function Configuracion() {
   // Botón oculto instructor — 10 clicks en el rol para borrar huellas
   const [instClicks, setInstClicks] = useState(0);
   const [showClear, setShowClear]   = useState(false);
-  const [confirmModal, setConfirmModal] = useState({ isOpen: false });
+  const [confirmDialog, setConfirmDialog] = useState({ open: false, action: null });
   const instTimer = useRef(null);
   const handleInstClick = () => {
     if (user?.userType !== 'instructor') return;
@@ -1873,15 +1872,15 @@ export default function Configuracion() {
         <p className="text-gray-500 text-xs font-medium">Arachiz Version 1.3.2</p>
       </div>
 
-      <ConfirmModal
-        isOpen={confirmModal.isOpen}
-        onClose={() => setConfirmModal({ isOpen: false })}
-        onConfirm={confirmClearFingerprints}
+      <ConfirmDialog
+        open={confirmDialog.open}
+        onClose={() => setConfirmDialog({ open: false, action: null })}
+        onConfirm={confirmDialog.action}
         title="¿Borrar base de datos?"
         message="¿Borrar TODA la base de datos del sensor de huellas?"
         confirmText="Borrar"
         cancelText="Cancelar"
-        variant="danger"
+        danger={true}
       />
     </div>
   );
