@@ -8,7 +8,7 @@ export class FaceApiAdapter extends FacialRecognitionAdapter {
   constructor() {
     super();
     this.modelsLoaded = false;
-    this.threshold = 0.6;
+    this._threshold = 0.6;
   }
 
   async initialize() {
@@ -45,6 +45,6 @@ export class FaceApiAdapter extends FacialRecognitionAdapter {
   }
 
   get threshold() {
-    return 0.6;
+    return this._threshold;
   }
 }

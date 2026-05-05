@@ -49,7 +49,7 @@
   "optionalDependencies": {
     "@mediapipe/face_detection": "^0.4.1646425229",
     "@mediapipe/face_mesh": "^0.4.1633559619",
-    "@tensorflow/tfjs": "^4.22.0",
-    "@tensorflow-models/blazeface": "^0.0.7"
+    "@tensorflow-models/blazeface": "^0.0.7",
+    "@tensorflow/tfjs": "^4.22.0"
   }
 }

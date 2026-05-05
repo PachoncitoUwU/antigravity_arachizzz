@@ -10,30 +10,35 @@ export class MediaPipeAdapter extends FacialRecognitionAdapter {
     super();
     this.faceDetection = null;
     this.faceMesh = null;
-    this.threshold = 0.5;
+    this._threshold = 0.5;
+    this.initialized = false;
   }
 
   async initialize() {
-    // Importación dinámica para no romper si no está instalado
-    try {
-      const { FaceDetection } = await import('@mediapipe/face_detection');
-      const { FaceMesh } = await import('@mediapipe/face_mesh');
+    if (this.initialized) return;
 
-      this.faceDetection = new FaceDetection({
+    try {
+      // Importar MediaPipe
+      const FaceDetectionModule = await import('@mediapipe/face_detection');
+      const FaceMeshModule = await import('@mediapipe/face_mesh');
+
+      // Crear instancias
+      this.faceDetection = new FaceDetectionModule.FaceDetection({
         locateFile: (file) => {
           return `https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/${file}`;
         }
       });
 
-      this.faceDetection.setOptions({
-        model: 'short',
-        minDetectionConfidence: 0.5
-      });
-
-      this.faceMesh = new FaceMesh({
+      this.faceMesh = new FaceMeshModule.FaceMesh({
         locateFile: (file) => {
           return `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`;
         }
+      });
+
+      // Configurar opciones
+      this.faceDetection.setOptions({
+        model: 'short',
+        minDetectionConfidence: 0.5
       });
 
       this.faceMesh.setOptions({
@@ -43,8 +48,7 @@ export class MediaPipeAdapter extends FacialRecognitionAdapter {
         minTrackingConfidence: 0.5
       });
 
-      await this.faceDetection.initialize();
-      await this.faceMesh.initialize();
+      this.initialized = true;
     } catch (error) {
       console.error('MediaPipe no está instalado:', error);
       throw new Error('MediaPipe no disponible. Instalar: npm install @mediapipe/face_detection @mediapipe/face_mesh');
@@ -52,52 +56,77 @@ export class MediaPipeAdapter extends FacialRecognitionAdapter {
   }
 
   async detectFaces(imageData) {
-    const results = await this.faceDetection.send({ image: imageData });
-    return results.detections || [];
+    if (!this.initialized) {
+      await this.initialize();
+    }
+
+    return new Promise((resolve, reject) => {
+      this.faceDetection.onResults((results) => {
+        resolve(results.detections || []);
+      });
+
+      // Enviar imagen
+      if (imageData instanceof HTMLVideoElement || imageData instanceof HTMLImageElement) {
+        this.faceDetection.send({ image: imageData }).catch(reject);
+      } else {
+        reject(new Error('imageData debe ser HTMLVideoElement o HTMLImageElement'));
+      }
+    });
   }
 
   async extractDescriptor(imageData) {
-    const results = await this.faceMesh.send({ image: imageData });
-    
-    if (!results.multiFaceLandmarks || results.multiFaceLandmarks.length === 0) {
-      return null;
+    if (!this.initialized) {
+      await this.initialize();
     }
 
-    // Convertir landmarks a descriptor (simplificado)
-    const landmarks = results.multiFaceLandmarks[0];
-    const descriptor = this.landmarksToDescriptor(landmarks);
-    
-    return descriptor;
+    return new Promise((resolve, reject) => {
+      this.faceMesh.onResults((results) => {
+        if (!results.multiFaceLandmarks || results.multiFaceLandmarks.length === 0) {
+          resolve(null);
+          return;
+        }
+
+        // Convertir landmarks a descriptor
+        const landmarks = results.multiFaceLandmarks[0];
+        const descriptor = this.landmarksToDescriptor(landmarks);
+        resolve(descriptor);
+      });
+
+      // Enviar imagen
+      if (imageData instanceof HTMLVideoElement || imageData instanceof HTMLImageElement) {
+        this.faceMesh.send({ image: imageData }).catch(reject);
+      } else {
+        reject(new Error('imageData debe ser HTMLVideoElement o HTMLImageElement'));
+      }
+    });
   }
 
   landmarksToDescriptor(landmarks) {
-    // Extraer puntos clave y crear un descriptor simple
-    // En producción, usarías un modelo de embedding más sofisticado
-    const keyPoints = [
-      landmarks[1],   // Nariz
-      landmarks[33],  // Ojo izquierdo
-      landmarks[263], // Ojo derecho
-      landmarks[61],  // Boca izquierda
-      landmarks[291], // Boca derecha
-      landmarks[10],  // Frente
-      landmarks[152]  // Barbilla
-    ];
-
-    return new Float32Array(keyPoints.flatMap(p => [p.x, p.y, p.z]));
+    // Extraer puntos clave importantes (128 valores para compatibilidad)
+    // Usamos los primeros 42 landmarks (x, y, z) + padding
+    const keyPoints = landmarks.slice(0, 42);
+    const values = keyPoints.flatMap(p => [p.x, p.y, p.z]);
+    
+    // Rellenar hasta 128 valores
+    while (values.length < 128) {
+      values.push(0);
+    }
+    
+    return new Float32Array(values.slice(0, 128));
   }
 
   async compareDescriptors(desc1, desc2) {
     if (!desc1 || !desc2) return 1;
     
-    // Distancia euclidiana
+    // Distancia euclidiana normalizada
     let sum = 0;
-    for (let i = 0; i < desc1.length; i++) {
+    for (let i = 0; i < Math.min(desc1.length, desc2.length); i++) {
       sum += Math.pow(desc1[i] - desc2[i], 2);
     }
-    return Math.sqrt(sum);
+    return Math.sqrt(sum) / Math.sqrt(128);
   }
 
   get threshold() {
-    return 0.5;
+    return this._threshold;
   }
 }
