@@ -43,6 +43,7 @@ npm run dev
 
 ### `backend/.env`
 ```
+
 PORT=3000
 JWT_SECRET=tu_secreto_seguro
 ```
