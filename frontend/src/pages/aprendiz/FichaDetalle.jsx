@@ -5,7 +5,7 @@ import fetchApi from '../../services/api';
 import { useToast } from '../../context/ToastContext';
 import MateriaInfoModal from '../../components/MateriaInfoModal';
 import {
-  ArrowLeft, Users, BookOpen, Star
+  ArrowLeft, Users, BookOpen, Star, History, Loader
 } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3000';
@@ -36,6 +36,11 @@ export default function AprendizFichaDetalle() {
   
   // Estado para fichas ancladas
   const [isPinned, setIsPinned] = useState(false);
+  
+  // Estados para historial
+  const [historial, setHistorial] = useState([]);
+  const [loadingHistorial, setLoadingHistorial] = useState(false);
+  const [showHistorial, setShowHistorial] = useState(false);
 
   useEffect(() => {
     loadFicha();
@@ -61,6 +66,26 @@ export default function AprendizFichaDetalle() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const loadHistorial = async () => {
+    try {
+      setLoadingHistorial(true);
+      const data = await fetchApi(`/fichas/${id}/historial?limit=50`);
+      setHistorial(data.historial || []);
+    } catch (err) {
+      console.error('Error cargando historial:', err);
+      showToast(err.message || 'Error al cargar el historial', 'error');
+    } finally {
+      setLoadingHistorial(false);
+    }
+  };
+
+  const toggleHistorial = () => {
+    if (!showHistorial && historial.length === 0) {
+      loadHistorial();
+    }
+    setShowHistorial(!showHistorial);
   };
 
   const loadMateriasEvitadas = async () => {
@@ -589,6 +614,89 @@ export default function AprendizFichaDetalle() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* Historial de Cambios */}
+      <div className="card">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <History size={20} className="text-gray-500" />
+            <h2 className="text-lg font-bold text-gray-900 dark:text-white">Historial de Cambios</h2>
+          </div>
+          <button
+            onClick={toggleHistorial}
+            className="btn-secondary text-sm flex items-center gap-2"
+          >
+            {showHistorial ? 'Ocultar' : 'Ver Historial'}
+          </button>
+        </div>
+
+        {showHistorial && (
+          <div className="space-y-2">
+            {loadingHistorial ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader className="animate-spin text-gray-400" size={32} />
+              </div>
+            ) : historial.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <History size={48} className="mx-auto mb-2 opacity-30" />
+                <p>No hay cambios registrados</p>
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-96 overflow-y-auto">
+                {historial.map((cambio) => (
+                  <div
+                    key={cambio.id}
+                    className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-100 dark:border-gray-700"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="flex-shrink-0">
+                        {cambio.usuario.avatarUrl ? (
+                          <img
+                            src={resolveAvatar(cambio.usuario.avatarUrl)}
+                            alt={cambio.usuario.fullName}
+                            className="w-8 h-8 rounded-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white font-bold text-sm">
+                            {cambio.usuario.fullName.charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-semibold text-gray-900 dark:text-gray-100 text-sm">
+                            {cambio.usuario.fullName}
+                          </span>
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                            cambio.usuario.userType === 'administrador'
+                              ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                              : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                          }`}>
+                            {cambio.usuario.userType === 'administrador' ? 'Admin' : 'Instructor'}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-700 dark:text-gray-300 mb-1">
+                          {cambio.descripcion}
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          {new Date(cambio.fechaHora).toLocaleString('es-CO', {
+                            timeZone: 'America/Bogota',
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Modal de información de materia (simplificado para aprendiz) */}

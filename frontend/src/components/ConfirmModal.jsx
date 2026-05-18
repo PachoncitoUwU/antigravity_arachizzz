@@ -8,7 +8,8 @@ export default function ConfirmModal({
   message,
   confirmText = 'Confirmar',
   cancelText = 'Cancelar',
-  variant = 'danger' // 'danger' | 'warning' | 'primary'
+  variant = 'danger', // 'danger' | 'warning' | 'primary'
+  loading = false
 }) {
   if (!isOpen) return null;
 
@@ -19,8 +20,9 @@ export default function ConfirmModal({
   };
 
   const handleConfirm = () => {
-    onConfirm();
-    onClose();
+    if (!loading) {
+      onConfirm();
+    }
   };
 
   return (
@@ -33,7 +35,8 @@ export default function ConfirmModal({
           </h3>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+            disabled={loading}
+            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 disabled:opacity-50"
           >
             <X className="w-5 h-5" />
           </button>
@@ -50,15 +53,24 @@ export default function ConfirmModal({
         <div className="flex gap-3 p-4 border-t border-gray-200 dark:border-gray-700">
           <button
             onClick={onClose}
-            className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 transition-colors"
+            disabled={loading}
+            className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {cancelText}
           </button>
           <button
             onClick={handleConfirm}
-            className={`flex-1 px-4 py-2 text-white rounded-lg transition-colors ${variantStyles[variant]}`}
+            disabled={loading}
+            className={`flex-1 px-4 py-2 text-white rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${variantStyles[variant]}`}
           >
-            {confirmText}
+            {loading ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                Procesando...
+              </>
+            ) : (
+              confirmText
+            )}
           </button>
         </div>
       </div>

@@ -82,6 +82,7 @@ const getFichaDetalle = async (req, res) => {
             instructor: {
               select: { id: true, fullName: true }
             },
+            horarios: true,
             _count: {
               select: { asistencias: true }
             }
@@ -140,14 +141,50 @@ const getFichaDetalle = async (req, res) => {
 
 /**
  * Cambiar el líder (instructorAdmin) de una ficha
+ * Permite poner nuevoLiderId como null para quitar el líder
  */
 const cambiarLiderFicha = async (req, res) => {
   try {
     const { fichaId } = req.params;
     const { nuevoLiderId } = req.body;
 
-    if (!nuevoLiderId) {
-      return res.status(400).json({ error: 'ID del nuevo líder es requerido' });
+    // Obtener datos anteriores para historial
+    const fichaAnterior = await prisma.ficha.findUnique({
+      where: { id: fichaId },
+      include: {
+        instructorAdmin: { select: { fullName: true } }
+      }
+    });
+
+    if (!fichaAnterior) {
+      return res.status(404).json({ error: 'Ficha no encontrada' });
+    }
+
+    // Si nuevoLiderId es null, quitar el líder
+    if (nuevoLiderId === null) {
+      const fichaActualizada = await prisma.ficha.update({
+        where: { id: fichaId },
+        data: { instructorAdminId: null }
+      });
+
+      // Registrar en historial
+      await prisma.historialCambios.create({
+        data: {
+          fichaId,
+          usuarioId: req.user.id,
+          tipoEvento: 'quitar_lider',
+          entidad: 'ficha',
+          entidadId: fichaId,
+          descripcion: `Quitó a "${fichaAnterior.instructorAdmin?.fullName || 'Sin líder'}" como líder de la ficha`,
+          datosAnteriores: { instructorAdminId: fichaAnterior.instructorAdminId },
+          datosNuevos: { instructorAdminId: null }
+        }
+      });
+
+      return res.json({ 
+        message: 'Líder removido correctamente',
+        ficha: fichaActualizada 
+      });
     }
 
     // Verificar que el nuevo líder existe y es instructor
@@ -177,14 +214,6 @@ const cambiarLiderFicha = async (req, res) => {
       return res.status(400).json({ error: 'El instructor no pertenece a esta ficha' });
     }
 
-    // Obtener datos anteriores para historial
-    const fichaAnterior = await prisma.ficha.findUnique({
-      where: { id: fichaId },
-      include: {
-        instructorAdmin: { select: { fullName: true } }
-      }
-    });
-
     // Cambiar el líder
     const fichaActualizada = await prisma.ficha.update({
       where: { id: fichaId },
@@ -204,7 +233,7 @@ const cambiarLiderFicha = async (req, res) => {
         tipoEvento: 'cambio_lider',
         entidad: 'ficha',
         entidadId: fichaId,
-        descripcion: `Cambió el líder de la ficha de "${fichaAnterior.instructorAdmin.fullName}" a "${nuevoLider.fullName}"`,
+        descripcion: `Cambió el líder de la ficha de "${fichaAnterior.instructorAdmin?.fullName || 'Sin líder'}" a "${nuevoLider.fullName}"`,
         datosAnteriores: { instructorAdminId: fichaAnterior.instructorAdminId },
         datosNuevos: { instructorAdminId: nuevoLiderId }
       }
@@ -665,7 +694,7 @@ const crearFicha = async (req, res) => {
         centro,
         jornada,
         region: region || '',
-        duracion: duracion || 0,
+        duracion: duracion ? parseInt(duracion, 10) : 0,
         nombre: nombre || 'Programa sin nombre',
         code,
         administradorId: req.user.id,
@@ -844,7 +873,7 @@ const actualizarFicha = async (req, res) => {
         centro: centro || ficha.centro,
         jornada: jornada || ficha.jornada,
         region: region !== undefined ? region : ficha.region,
-        duracion: duracion !== undefined ? duracion : ficha.duracion
+        duracion: duracion !== undefined ? parseInt(duracion, 10) : ficha.duracion
       }
     });
 
@@ -941,6 +970,8 @@ const eliminarAprendizDeFicha = async (req, res) => {
 
 /**
  * Enviar un instructor a la papelera (removerlo de una ficha)
+ * Permite eliminar incluso al líder de la ficha
+ * Las materias del instructor quedan sin instructor asignado
  */
 const eliminarInstructorDeFicha = async (req, res) => {
   try {
@@ -973,12 +1004,26 @@ const eliminarInstructorDeFicha = async (req, res) => {
       return res.status(404).json({ error: 'El instructor no pertenece a esta ficha' });
     }
 
-    // No permitir eliminar al líder de la ficha
+    const instructor = ficha.instructores[0].instructor;
+
+    // Si el instructor es líder, quitarle el rol de líder
     if (ficha.instructorAdminId === instructorId) {
-      return res.status(400).json({ error: 'No puedes eliminar al líder de la ficha. Primero cambia el líder.' });
+      await prisma.ficha.update({
+        where: { id: fichaId },
+        data: { instructorAdminId: null }
+      });
     }
 
-    const instructor = ficha.instructores[0].instructor;
+    // Poner instructorId en null en todas las materias del instructor en esta ficha
+    await prisma.materia.updateMany({
+      where: {
+        fichaId,
+        instructorId
+      },
+      data: {
+        instructorId: null
+      }
+    });
 
     // Enviar a papelera antes de eliminar
     await enviarAPapelera(
@@ -1007,10 +1052,13 @@ const eliminarInstructorDeFicha = async (req, res) => {
       'enviar_papelera',
       'instructor',
       instructorId,
-      `Envió al instructor ${instructor.fullName} a la papelera (removido de ficha ${ficha.numero})`
+      `Envió al instructor ${instructor.fullName} a la papelera (removido de ficha ${ficha.numero})${ficha.instructorAdminId === instructorId ? ' y removido como líder' : ''}`
     );
 
-    res.json({ message: 'Instructor enviado a la papelera exitosamente' });
+    res.json({ 
+      message: 'Instructor enviado a la papelera exitosamente',
+      wasLeader: ficha.instructorAdminId === instructorId
+    });
   } catch (err) {
     res.status(500).json({ error: 'Error enviando instructor a papelera: ' + err.message });
   }
@@ -1079,15 +1127,13 @@ const salirDeFicha = async (req, res) => {
         return res.status(404).json({ error: 'No perteneces a esta ficha' });
       }
 
-      // No permitir salir si es el líder de la ficha
-      if (ficha.instructorAdminId === userId) {
+      // Instructores no pueden salir si son líderes (solo administradores pueden)
+      if (userType === 'instructor' && ficha.instructorAdminId === userId) {
         return res.status(400).json({ error: 'No puedes salir de una ficha donde eres líder. Primero cambia el líder o elimina la ficha.' });
       }
 
-      // No permitir salir si es el administrador de la ficha
-      if (ficha.administradorId === userId) {
-        return res.status(400).json({ error: 'No puedes salir de una ficha donde eres administrador. Primero transfiere la administración.' });
-      }
+      // Administradores SÍ pueden salir sin restricciones
+      // La ficha puede quedar sin administrador
 
       const user = await prisma.user.findUnique({
         where: { id: userId },
@@ -1096,6 +1142,19 @@ const salirDeFicha = async (req, res) => {
 
       userFullName = user.fullName;
       tipoSalida = userType;
+
+      // Si es instructor, poner instructorId en null en todas sus materias de esta ficha
+      if (userType === 'instructor' && fichaInstructor) {
+        await prisma.materia.updateMany({
+          where: {
+            fichaId,
+            instructorId: userId
+          },
+          data: {
+            instructorId: null
+          }
+        });
+      }
 
       // Enviar a papelera como "ficha anterior"
       await enviarAPapelera(
@@ -1116,6 +1175,14 @@ const salirDeFicha = async (req, res) => {
               instructorId: userId
             }
           }
+        });
+      }
+
+      // Si el administrador sale, removerlo de la ficha
+      if (userType === 'administrador' && ficha.administradorId === userId) {
+        await prisma.ficha.update({
+          where: { id: fichaId },
+          data: { administradorId: null }
         });
       }
     }
@@ -1587,6 +1654,62 @@ const getEstadisticasExcusas = async (req, res) => {
   }
 };
 
+/**
+ * Obtener historial de cambios de una ficha
+ */
+const getHistorialFicha = async (req, res) => {
+  try {
+    const { fichaId } = req.params;
+    const { limit = 50, offset = 0 } = req.query;
+
+    // Verificar que la ficha existe y pertenece al admin
+    const ficha = await prisma.ficha.findUnique({
+      where: { id: fichaId }
+    });
+
+    if (!ficha) {
+      return res.status(404).json({ error: 'Ficha no encontrada' });
+    }
+
+    if (ficha.administradorId !== req.user.id) {
+      return res.status(403).json({ error: 'No tienes permisos sobre esta ficha' });
+    }
+
+    // Obtener historial de cambios
+    const historial = await prisma.historialCambios.findMany({
+      where: { fichaId },
+      include: {
+        usuario: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            userType: true,
+            avatarUrl: true
+          }
+        }
+      },
+      orderBy: { fechaHora: 'desc' },
+      take: parseInt(limit),
+      skip: parseInt(offset)
+    });
+
+    // Contar total de registros
+    const total = await prisma.historialCambios.count({
+      where: { fichaId }
+    });
+
+    res.json({ 
+      historial,
+      total,
+      limit: parseInt(limit),
+      offset: parseInt(offset)
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Error obteniendo historial: ' + err.message });
+  }
+};
+
 module.exports = {
   getFichasAdmin,
   getFichaDetalle,
@@ -1609,5 +1732,6 @@ module.exports = {
   getHorariosDeInstructor,
   getMateriasDeInstructor,
   getExcusasAdmin,
-  getEstadisticasExcusas
+  getEstadisticasExcusas,
+  getHistorialFicha
 };

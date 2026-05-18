@@ -9,6 +9,8 @@ export default function MateriaInfoModal({
   onClose, 
   materia, 
   isCreatorOrAdmin,
+  isAdmin = false,
+  instructores = [],
   onUpdate,
   onDelete,
   isAprendizView = false
@@ -16,7 +18,8 @@ export default function MateriaInfoModal({
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
     nombre: materia?.nombre || '',
-    tipo: materia?.tipo || 'Técnica'
+    tipo: materia?.tipo || 'Técnica',
+    instructorId: materia?.instructorId || ''
   });
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -28,7 +31,8 @@ export default function MateriaInfoModal({
   const handleEdit = () => {
     setFormData({
       nombre: materia.nombre,
-      tipo: materia.tipo
+      tipo: materia.tipo,
+      instructorId: materia.instructorId || ''
     });
     setIsEditing(true);
     setError('');
@@ -38,7 +42,8 @@ export default function MateriaInfoModal({
     setIsEditing(false);
     setFormData({
       nombre: materia.nombre,
-      tipo: materia.tipo
+      tipo: materia.tipo,
+      instructorId: materia.instructorId || ''
     });
     setError('');
   };
@@ -55,10 +60,13 @@ export default function MateriaInfoModal({
       setSaving(true);
       setError('');
 
-      await fetchApi(`/materias/${materia.id}`, {
+      const updatedMateria = await fetchApi(`/materias/${materia.id}`, {
         method: 'PUT',
         body: JSON.stringify(formData)
       });
+
+      // Actualizar el objeto materia localmente
+      Object.assign(materia, updatedMateria.materia);
 
       setIsEditing(false);
       if (onUpdate) {
@@ -146,6 +154,29 @@ export default function MateriaInfoModal({
               </select>
             </div>
 
+            {/* Solo admin puede cambiar instructor */}
+            {isAdmin && (
+              <div>
+                <label className="input-label">Instructor a Cargo</label>
+                <select 
+                  className="input-field" 
+                  value={formData.instructorId} 
+                  onChange={e => setFormData(prev => ({ ...prev, instructorId: e.target.value }))}
+                  disabled={saving}
+                >
+                  <option value="">Sin instructor asignado</option>
+                  {instructores.map(inst => (
+                    <option key={inst.id} value={inst.id}>
+                      {inst.fullName}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Solo el administrador puede cambiar el instructor de una materia
+                </p>
+              </div>
+            )}
+
             <div className="flex gap-3 pt-2">
               <button 
                 type="button" 
@@ -162,7 +193,7 @@ export default function MateriaInfoModal({
               >
                 {saving ? (
                   <>
-                    <Loader size={16} className="animate-spin" />
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                     Guardando...
                   </>
                 ) : (
@@ -253,7 +284,7 @@ export default function MateriaInfoModal({
                 >
                   {deleting ? (
                     <>
-                      <Loader size={16} className="animate-spin" />
+                      <div className="w-4 h-4 border-2 border-red-600 border-t-transparent rounded-full animate-spin" />
                       Eliminando...
                     </>
                   ) : (

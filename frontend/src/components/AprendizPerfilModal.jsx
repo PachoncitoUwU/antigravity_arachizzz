@@ -163,15 +163,6 @@ export default function AprendizPerfilModal({
                   <span className={`text-xs ${hasNfc ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400'}`}>
                     {hasNfc ? '✓ Registrado' : 'No registrado'}
                   </span>
-                  {hasNfc && isAdmin && (
-                    <button
-                      onClick={handleDeleteNfc}
-                      className="text-xs text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 px-2 py-1 rounded transition-colors"
-                      title="Eliminar NFC"
-                    >
-                      Eliminar
-                    </button>
-                  )}
                 </div>
               </div>
 
@@ -266,7 +257,8 @@ export default function AprendizPerfilModal({
         <EnrollModal 
           open={modalEnroll} 
           onClose={handleCloseEnroll} 
-          aprendiz={localAprendiz} 
+          aprendiz={{...localAprendiz, fichaId}}
+          onUpdate={onUpdate}
         />
       )}
 

@@ -271,6 +271,75 @@ const removeAprendiz = async (req, res) => {
   }
 };
 
+// Obtener historial de cambios de una ficha (para instructores y aprendices)
+const getHistorialFicha = async (req, res) => {
+  const { id } = req.params;
+  const { limit = 50, offset = 0 } = req.query;
+  const userId = req.user.id;
+  const userType = req.user.userType;
+
+  try {
+    const ficha = await prisma.ficha.findUnique({
+      where: { id },
+      include: {
+        instructores: true,
+        aprendices: { select: { id: true } }
+      }
+    });
+
+    if (!ficha) {
+      return res.status(404).json({ error: 'Ficha no encontrada' });
+    }
+
+    // Verificar que el usuario pertenece a la ficha
+    let hasAccess = false;
+    if (userType === 'instructor') {
+      hasAccess = ficha.instructores.some(i => i.instructorId === userId);
+    } else if (userType === 'aprendiz') {
+      hasAccess = ficha.aprendices.some(a => a.id === userId);
+    } else if (userType === 'administrador') {
+      hasAccess = ficha.administradorId === userId;
+    }
+
+    if (!hasAccess) {
+      return res.status(403).json({ error: 'No tienes acceso a esta ficha' });
+    }
+
+    // Obtener historial de cambios
+    const historial = await prisma.historialCambios.findMany({
+      where: { fichaId: id },
+      include: {
+        usuario: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            userType: true,
+            avatarUrl: true
+          }
+        }
+      },
+      orderBy: { fechaHora: 'desc' },
+      take: parseInt(limit),
+      skip: parseInt(offset)
+    });
+
+    // Contar total de registros
+    const total = await prisma.historialCambios.count({
+      where: { fichaId: id }
+    });
+
+    res.json({ 
+      historial,
+      total,
+      limit: parseInt(limit),
+      offset: parseInt(offset)
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Error obteniendo historial: ' + err.message });
+  }
+};
+
 module.exports = {
   createFicha,
   updateFicha,
@@ -278,5 +347,6 @@ module.exports = {
   getUserFichas,
   getFichaById,
   joinFicha,
-  removeAprendiz
+  removeAprendiz,
+  getHistorialFicha
 };

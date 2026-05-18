@@ -55,10 +55,10 @@ model Ficha {
   duracion          Int                 @default(0)
   code              String              @unique
   createdAt         DateTime            @default(now())
-  instructorAdminId String
+  instructorAdminId String?
   administradorId   String?
   nombre            String              @default("Programa sin nombre")
-  instructorAdmin   User                @relation("InstructorAdmin", fields: [instructorAdminId], references: [id])
+  instructorAdmin   User?               @relation("InstructorAdmin", fields: [instructorAdminId], references: [id])
   administrador     User?               @relation("Administrador", fields: [administradorId], references: [id])
   instructores      FichaInstructor[]
   horarios          Horario[]
@@ -86,12 +86,12 @@ model Materia {
   nombre           String
   tipo             String
   fichaId          String
-  instructorId     String
+  instructorId     String?
   asistencias      Asistencia[]
   horarios         Horario[]
   excusas          Excusa[]
   ficha            Ficha              @relation(fields: [fichaId], references: [id], onDelete: Cascade)
-  instructor       User               @relation("InstructorMaterias", fields: [instructorId], references: [id])
+  instructor       User?              @relation("InstructorMaterias", fields: [instructorId], references: [id])
   materiasEvitadas MateriaEvitada[]
 }
 

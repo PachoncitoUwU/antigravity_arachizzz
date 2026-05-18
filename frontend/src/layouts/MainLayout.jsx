@@ -2,6 +2,7 @@ import React, { useContext, useState } from 'react';
 import { Outlet, Navigate, NavLink } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 import { useSettings } from '../context/SettingsContext';
+import ConfirmDialog from '../components/ConfirmDialog';
 import {
   LayoutDashboard, Users, BookOpen, Clock, FileText,
   LogOut, Menu, X, Calendar, ChevronRight, GraduationCap,
@@ -36,7 +37,7 @@ const APRENDIZ_LINKS = [
   { to: '/aprendiz/excusas', icon: FileText, labelKey: 'excusas' },
 ];
 
-function SidebarContent({ links, user, logout, onClose, configPath }) {
+function SidebarContent({ links, user, logout, onClose, configPath, onLogoutClick }) {
   const { settings, toggleDark, t } = useSettings();
 
   const initials = user?.fullName
@@ -117,7 +118,7 @@ function SidebarContent({ links, user, logout, onClose, configPath }) {
         </div>
 
         <button
-          onClick={logout}
+          onClick={onLogoutClick}
           className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors font-medium"
         >
           <LogOut size={16} />
@@ -132,6 +133,7 @@ export default function MainLayout({ allowedRoles }) {
   const { user, isAuthenticated, logout } = useContext(AuthContext);
   const { settings } = useSettings();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   if (allowedRoles && !allowedRoles.includes(user?.userType)) {
@@ -141,42 +143,65 @@ export default function MainLayout({ allowedRoles }) {
   const links = user?.userType === 'instructor' ? INSTRUCTOR_LINKS : user?.userType === 'administrador' ? ADMIN_LINKS : APRENDIZ_LINKS;
   const configPath = `/${user?.userType}/configuracion`;
 
+  const handleLogoutClick = () => {
+    setShowLogoutConfirm(true);
+  };
+
+  const confirmLogout = () => {
+    setShowLogoutConfirm(false);
+    logout();
+  };
+
   return (
-    <div className="flex h-screen overflow-hidden">
-      <div className="flex h-full w-full bg-[#F5F5F5] dark:bg-gray-950">
-        {/* Desktop Sidebar */}
-        <aside className="hidden md:flex w-60 flex-col shrink-0">
-          <SidebarContent links={links} user={user} logout={logout} configPath={configPath} />
-        </aside>
+    <>
+      <div className="flex h-screen overflow-hidden">
+        <div className="flex h-full w-full bg-[#F5F5F5] dark:bg-gray-950">
+          {/* Desktop Sidebar */}
+          <aside className="hidden md:flex w-60 flex-col shrink-0">
+            <SidebarContent links={links} user={user} logout={logout} configPath={configPath} onLogoutClick={handleLogoutClick} />
+          </aside>
 
-        {/* Mobile Sidebar Overlay */}
-        {sidebarOpen && (
-          <div className="fixed inset-0 z-40 md:hidden">
-            <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={() => setSidebarOpen(false)} />
-            <aside className="absolute left-0 top-0 h-full w-64 shadow-xl z-50">
-              <SidebarContent links={links} user={user} logout={logout} onClose={() => setSidebarOpen(false)} configPath={configPath} />
-            </aside>
-          </div>
-        )}
-
-        {/* Main */}
-        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-          {/* Mobile topbar */}
-          <header className="md:hidden flex items-center justify-between px-4 py-3 bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800 shrink-0 shadow-sm transition-all duration-300">
-            <button onClick={() => setSidebarOpen(true)} className="btn-icon text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-              <Menu size={20} />
-            </button>
-            <div className="flex items-center">
-              <img src="/ArachizLogoPNG.png" alt="Arachiz" className="h-6 object-contain dark:invert transition-all duration-300" />
+          {/* Mobile Sidebar Overlay */}
+          {sidebarOpen && (
+            <div className="fixed inset-0 z-40 md:hidden">
+              <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={() => setSidebarOpen(false)} />
+              <aside className="absolute left-0 top-0 h-full w-64 shadow-xl z-50">
+                <SidebarContent links={links} user={user} logout={logout} onClose={() => setSidebarOpen(false)} configPath={configPath} onLogoutClick={handleLogoutClick} />
+              </aside>
             </div>
-            <div className="w-9" />
-          </header>
+          )}
 
-          <main className="flex-1 overflow-y-auto p-4 md:p-6 dark:bg-gray-950">
-            <Outlet />
-          </main>
+          {/* Main */}
+          <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+            {/* Mobile topbar */}
+            <header className="md:hidden flex items-center justify-between px-4 py-3 bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800 shrink-0 shadow-sm transition-all duration-300">
+              <button onClick={() => setSidebarOpen(true)} className="btn-icon text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                <Menu size={20} />
+              </button>
+              <div className="flex items-center">
+                <img src="/ArachizLogoPNG.png" alt="Arachiz" className="h-6 object-contain dark:invert transition-all duration-300" />
+              </div>
+              <div className="w-9" />
+            </header>
+
+            <main className="flex-1 overflow-y-auto p-4 md:p-6 dark:bg-gray-950">
+              <Outlet />
+            </main>
+          </div>
         </div>
       </div>
-    </div>
+
+      {/* Modal de confirmación para cerrar sesión */}
+      <ConfirmDialog
+        open={showLogoutConfirm}
+        onClose={() => setShowLogoutConfirm(false)}
+        onConfirm={confirmLogout}
+        title="¿Cerrar sesión?"
+        message="¿Estás seguro de que deseas cerrar sesión?"
+        confirmText="Cerrar sesión"
+        cancelText="Cancelar"
+        danger={true}
+      />
+    </>
   );
 }

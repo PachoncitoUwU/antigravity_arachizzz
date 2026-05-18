@@ -10,7 +10,7 @@ import MateriaInfoModal from '../../components/MateriaInfoModal';
 import ConfirmModal from '../../components/ConfirmModal';
 import {
   ArrowLeft, Users, BookOpen, Calendar, Copy, RefreshCw, Check, 
-  Download, Loader, Edit2, UserMinus, Fingerprint, Link, Clock, Plus, Star
+  Download, Loader, Edit2, UserMinus, Fingerprint, Link, Clock, Plus, Star, Eye, EyeOff, History
 } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3000';
@@ -32,6 +32,7 @@ export default function FichaDetalle() {
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
+  const [showCode, setShowCode] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [modalMateria, setModalMateria] = useState(false);
   const [formMateria, setFormMateria] = useState({ nombre: '', tipo: 'Técnica' });
@@ -58,10 +59,15 @@ export default function FichaDetalle() {
   const [filterInstructor, setFilterInstructor] = useState('all'); // 'all' | instructorId
   
   // Estados para modales de confirmación
-  const [confirmModal, setConfirmModal] = useState({ isOpen: false, action: null, data: null });
+  const [confirmModal, setConfirmModal] = useState({ isOpen: false, action: null, data: null, loading: false });
   
   // Estado para fichas ancladas
   const [isPinned, setIsPinned] = useState(false);
+  
+  // Estados para historial
+  const [historial, setHistorial] = useState([]);
+  const [loadingHistorial, setLoadingHistorial] = useState(false);
+  const [showHistorial, setShowHistorial] = useState(false);
 
   useEffect(() => {
     loadFicha();
@@ -90,6 +96,26 @@ export default function FichaDetalle() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const loadHistorial = async () => {
+    try {
+      setLoadingHistorial(true);
+      const data = await fetchApi(`/admin/fichas/${id}/historial?limit=50`);
+      setHistorial(data.historial || []);
+    } catch (err) {
+      console.error('Error cargando historial:', err);
+      showToast(err.message || 'Error al cargar el historial', 'error');
+    } finally {
+      setLoadingHistorial(false);
+    }
+  };
+
+  const toggleHistorial = () => {
+    if (!showHistorial && historial.length === 0) {
+      loadHistorial();
+    }
+    setShowHistorial(!showHistorial);
   };
 
   const copyCode = () => {
@@ -196,14 +222,12 @@ export default function FichaDetalle() {
     });
   };
 
-  const confirmRemoveInstructor = async () => {
-    try {
-      await fetchApi(`/admin/fichas/${id}/instructores/${confirmModal.data.instructorId}`, { method: 'DELETE' });
-      showToast('Instructor enviado a la papelera', 'success');
-      loadFicha(); // Recargar vista
-    } catch (err) {
-      showToast(err.message, 'error');
-    }
+  const handleRemoveLider = async (instructorId, instructorName) => {
+    setConfirmModal({
+      isOpen: true,
+      action: 'removeLider',
+      data: { instructorId, instructorName }
+    });
   };
 
   const confirmSalirFicha = async () => {
@@ -330,15 +354,46 @@ export default function FichaDetalle() {
 
   const confirmDesignarLider = async () => {
     try {
+      setConfirmModal(prev => ({ ...prev, loading: true }));
       await fetchApi(`/admin/fichas/${id}/cambiar-lider`, {
         method: 'PUT',
         body: JSON.stringify({ nuevoLiderId: confirmModal.data })
       });
       showToast('Líder designado exitosamente', 'success');
+      setConfirmModal({ isOpen: false, action: null, data: null, loading: false });
       loadFicha();
-      // No necesitamos cerrar el modal de instructor porque ya está cerrado
     } catch (err) {
       showToast(err.message || 'Error al designar líder', 'error');
+      setConfirmModal(prev => ({ ...prev, loading: false }));
+    }
+  };
+
+  const confirmRemoveLider = async () => {
+    try {
+      setConfirmModal(prev => ({ ...prev, loading: true }));
+      await fetchApi(`/admin/fichas/${id}/cambiar-lider`, {
+        method: 'PUT',
+        body: JSON.stringify({ nuevoLiderId: null })
+      });
+      showToast('Líder removido exitosamente', 'success');
+      setConfirmModal({ isOpen: false, action: null, data: null, loading: false });
+      loadFicha();
+    } catch (err) {
+      showToast(err.message, 'error');
+      setConfirmModal(prev => ({ ...prev, loading: false }));
+    }
+  };
+
+  const confirmRemoveInstructor = async () => {
+    try {
+      setConfirmModal(prev => ({ ...prev, loading: true }));
+      await fetchApi(`/admin/fichas/${id}/instructores/${confirmModal.data.instructorId}`, { method: 'DELETE' });
+      showToast('Instructor enviado a la papelera', 'success');
+      setConfirmModal({ isOpen: false, action: null, data: null, loading: false });
+      loadFicha();
+    } catch (err) {
+      showToast(err.message, 'error');
+      setConfirmModal(prev => ({ ...prev, loading: false }));
     }
   };
 
@@ -707,10 +762,23 @@ export default function FichaDetalle() {
             Código de Invitación
           </h3>
           
-          <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-xl mb-3">
-            <p className="text-center font-mono font-bold text-xl text-[#4285F4] tracking-widest select-all">
-              {ficha.code}
-            </p>
+          <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-xl mb-3 relative">
+            {showCode ? (
+              <p className="text-center font-mono font-bold text-xl text-[#4285F4] tracking-widest select-all">
+                {ficha.code}
+              </p>
+            ) : (
+              <p className="text-center font-mono font-bold text-xl text-gray-400 tracking-widest">
+                ••••••
+              </p>
+            )}
+            <button
+              onClick={() => setShowCode(!showCode)}
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-2 hover:bg-blue-100 dark:hover:bg-blue-800/30 rounded-lg transition-colors"
+              title={showCode ? 'Ocultar código' : 'Ver código'}
+            >
+              {showCode ? <EyeOff size={16} className="text-[#4285F4]" /> : <Eye size={16} className="text-[#4285F4]" />}
+            </button>
           </div>
 
           <div className="space-y-2">
@@ -1013,47 +1081,31 @@ export default function FichaDetalle() {
                 return (
                   <div 
                     key={fi.id} 
-                    className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors group"
+                    onClick={() => handleOpenInstructorPerfil(fi.instructor)}
+                    className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors cursor-pointer"
                   >
-                    <div 
-                      onClick={() => handleOpenInstructorPerfil(fi.instructor)}
-                      className="flex items-center gap-3 flex-1 cursor-pointer"
-                    >
-                      {avatarSrc ? (
-                        <img 
-                          src={avatarSrc} 
-                          className="w-10 h-10 rounded-xl object-cover" 
-                          alt={fi.instructor.fullName} 
-                        />
-                      ) : (
-                        <div 
-                          className="w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold text-white"
-                          style={{ backgroundColor: COLOR }}
-                        >
-                          {fi.instructor.fullName.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()}
-                        </div>
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">
-                          {fi.instructor.fullName}
-                        </p>
-                        <p className="text-xs text-gray-400 truncate">{fi.instructor.email}</p>
-                      </div>
-                      {isLider && (
-                        <span className="badge badge-info shrink-0 text-xs">Líder</span>
-                      )}
-                    </div>
-                    {!isLider && isAdmin && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleRemoveInstructor(fi.instructorId, fi.instructor.fullName);
-                        }}
-                        className="opacity-0 group-hover:opacity-100 transition-opacity btn-icon text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
-                        title="Enviar a papelera"
+                    {avatarSrc ? (
+                      <img 
+                        src={avatarSrc} 
+                        className="w-10 h-10 rounded-xl object-cover" 
+                        alt={fi.instructor.fullName} 
+                      />
+                    ) : (
+                      <div 
+                        className="w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold text-white"
+                        style={{ backgroundColor: COLOR }}
                       >
-                        <UserMinus size={16} />
-                      </button>
+                        {fi.instructor.fullName.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()}
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">
+                        {fi.instructor.fullName}
+                      </p>
+                      <p className="text-xs text-gray-400 truncate">{fi.instructor.email}</p>
+                    </div>
+                    {isLider && (
+                      <span className="badge badge-info shrink-0 text-xs">Líder</span>
                     )}
                   </div>
                 );
@@ -1113,6 +1165,89 @@ export default function FichaDetalle() {
           </div>
         </div>
       )}
+
+      {/* Historial de Cambios */}
+      <div className="card">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <History size={20} className="text-gray-500" />
+            <h2 className="text-lg font-bold text-gray-900 dark:text-white">Historial de Cambios</h2>
+          </div>
+          <button
+            onClick={toggleHistorial}
+            className="btn-secondary text-sm flex items-center gap-2"
+          >
+            {showHistorial ? 'Ocultar' : 'Ver Historial'}
+          </button>
+        </div>
+
+        {showHistorial && (
+          <div className="space-y-2">
+            {loadingHistorial ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader className="animate-spin text-gray-400" size={32} />
+              </div>
+            ) : historial.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <History size={48} className="mx-auto mb-2 opacity-30" />
+                <p>No hay cambios registrados</p>
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-96 overflow-y-auto">
+                {historial.map((cambio) => (
+                  <div
+                    key={cambio.id}
+                    className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-100 dark:border-gray-700"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="flex-shrink-0">
+                        {cambio.usuario.avatarUrl ? (
+                          <img
+                            src={resolveAvatar(cambio.usuario.avatarUrl)}
+                            alt={cambio.usuario.fullName}
+                            className="w-8 h-8 rounded-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white font-bold text-sm">
+                            {cambio.usuario.fullName.charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-semibold text-gray-900 dark:text-gray-100 text-sm">
+                            {cambio.usuario.fullName}
+                          </span>
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                            cambio.usuario.userType === 'administrador'
+                              ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                              : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                          }`}>
+                            {cambio.usuario.userType === 'administrador' ? 'Admin' : 'Instructor'}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-700 dark:text-gray-300 mb-1">
+                          {cambio.descripcion}
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          {new Date(cambio.fechaHora).toLocaleString('es-CO', {
+                            timeZone: 'America/Bogota',
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Modals */}
       <Modal open={modalMateria} onClose={() => setModalMateria(false)} title="Agregar Materia">
@@ -1269,7 +1404,8 @@ export default function FichaDetalle() {
         <EnrollModal 
           open={modalEnroll} 
           onClose={handleCloseEnroll} 
-          aprendiz={selectedAprendiz} 
+          aprendiz={selectedAprendiz}
+          onUpdate={handleBiometricUpdate}
         />
       )}
 
@@ -1294,6 +1430,8 @@ export default function FichaDetalle() {
           onClose={handleCloseMateriaInfo} 
           materia={selectedMateria}
           isCreatorOrAdmin={selectedMateria.instructorId === user?.id || isAdmin}
+          isAdmin={isAdmin}
+          instructores={ficha.instructores?.map(fi => fi.instructor) || []}
           onUpdate={handleMateriaUpdate}
           onDelete={handleMateriaDelete}
         />
@@ -1345,19 +1483,53 @@ export default function FichaDetalle() {
               )}
             </div>
 
-            {/* Botón designar como líder */}
-            <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+            {/* Botones de acción */}
+            <div className="pt-4 border-t border-gray-200 dark:border-gray-700 space-y-2">
               {ficha.instructorAdminId === selectedInstructor.id ? (
-                <div className="text-center py-2">
-                  <span className="badge badge-info">Líder Actual</span>
-                </div>
+                <>
+                  <div className="text-center py-2">
+                    <span className="badge badge-info">Líder Actual</span>
+                  </div>
+                  <button
+                    onClick={() => {
+                      handleCloseInstructorPerfil();
+                      setTimeout(() => handleRemoveLider(selectedInstructor.id, selectedInstructor.fullName), 100);
+                    }}
+                    className="btn-secondary w-full flex items-center justify-center gap-2 text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-900/20 border-orange-200"
+                  >
+                    <Star size={16} className="fill-current" />
+                    Quitar como Líder
+                  </button>
+                  <button
+                    onClick={() => {
+                      handleCloseInstructorPerfil();
+                      setTimeout(() => handleRemoveInstructor(selectedInstructor.id, selectedInstructor.fullName), 100);
+                    }}
+                    className="btn-secondary w-full flex items-center justify-center gap-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 border-red-200"
+                  >
+                    <UserMinus size={16} />
+                    Enviar a Papelera
+                  </button>
+                </>
               ) : (
-                <button
-                  onClick={() => handleDesignarLider(selectedInstructor.id)}
-                  className="btn-primary w-full"
-                >
-                  Designar como Líder
-                </button>
+                <>
+                  <button
+                    onClick={() => handleDesignarLider(selectedInstructor.id)}
+                    className="btn-primary w-full"
+                  >
+                    Designar como Líder
+                  </button>
+                  <button
+                    onClick={() => {
+                      handleCloseInstructorPerfil();
+                      setTimeout(() => handleRemoveInstructor(selectedInstructor.id, selectedInstructor.fullName), 100);
+                    }}
+                    className="btn-secondary w-full flex items-center justify-center gap-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 border-red-200"
+                  >
+                    <UserMinus size={16} />
+                    Enviar a Papelera
+                  </button>
+                </>
               )}
             </div>
           </div>
@@ -1367,19 +1539,22 @@ export default function FichaDetalle() {
       {/* Modal de confirmación */}
       <ConfirmModal
         isOpen={confirmModal.isOpen}
-        onClose={() => setConfirmModal({ isOpen: false, action: null, data: null })}
+        onClose={() => setConfirmModal({ isOpen: false, action: null, data: null, loading: false })}
         onConfirm={() => {
           if (confirmModal.action === 'regenerate') confirmRegenerate();
           else if (confirmModal.action === 'removeAprendiz') confirmRemoveAprendiz();
           else if (confirmModal.action === 'removeInstructor') confirmRemoveInstructor();
+          else if (confirmModal.action === 'removeLider') confirmRemoveLider();
           else if (confirmModal.action === 'salirFicha') confirmSalirFicha();
           else if (confirmModal.action === 'eliminarFicha') confirmEliminarFicha();
           else if (confirmModal.action === 'designarLider') confirmDesignarLider();
         }}
+        loading={confirmModal.loading}
         title={
           confirmModal.action === 'regenerate' ? '¿Regenerar código?' :
           confirmModal.action === 'removeAprendiz' ? '¿Enviar aprendiz a papelera?' :
           confirmModal.action === 'removeInstructor' ? '¿Enviar instructor a papelera?' :
+          confirmModal.action === 'removeLider' ? '¿Quitar como líder?' :
           confirmModal.action === 'salirFicha' ? '¿Salir de esta ficha?' :
           confirmModal.action === 'eliminarFicha' ? '¿Eliminar ficha permanentemente?' :
           confirmModal.action === 'designarLider' ? '¿Designar como Líder?' :
@@ -1389,6 +1564,7 @@ export default function FichaDetalle() {
           confirmModal.action === 'regenerate' ? 'El código anterior dejará de funcionar.' :
           confirmModal.action === 'removeAprendiz' ? '¿Enviar este aprendiz a la papelera? Podrá ser recuperado desde la sección de papelera.' :
           confirmModal.action === 'removeInstructor' ? `¿Enviar a ${confirmModal.data?.instructorName} a la papelera? Será removido de esta ficha y podrá ser recuperado desde la sección de papelera.` :
+          confirmModal.action === 'removeLider' ? `¿Quitar a ${confirmModal.data?.instructorName} como líder? La ficha quedará sin líder designado.` :
           confirmModal.action === 'salirFicha' ? 'Serás removido de esta ficha y podrás verla en "Fichas Anteriores" en la papelera.' :
           confirmModal.action === 'eliminarFicha' ? 'Esta acción eliminará permanentemente la ficha y todos sus datos asociados. Esta acción NO se puede deshacer.' :
           confirmModal.action === 'designarLider' ? 'El líder actual perderá sus permisos y este instructor será el nuevo líder de la ficha.' :

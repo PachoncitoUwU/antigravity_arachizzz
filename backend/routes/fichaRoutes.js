@@ -8,6 +8,7 @@ router.use(authMiddleware);
 
 router.post('/', roleMiddleware(['instructor']), fichaController.createFicha);
 router.get('/my-fichas', fichaController.getUserFichas);
+router.get('/:id/historial', fichaController.getHistorialFicha); // DEBE IR ANTES de /:id
 router.get('/:id', fichaController.getFichaById);
 router.put('/:id', roleMiddleware(['instructor']), fichaController.updateFicha);
 router.post('/:id/regenerate-code', roleMiddleware(['instructor']), fichaController.regenerateCode);
