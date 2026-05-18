@@ -100,18 +100,8 @@ const getMe = async (req, res) => {
     // Obtener fichaId: primero de aprendiz, si no existe, de instructor
     const fichaId = fichasApr?.[0]?.id || fichasInst?.[0]?.fichaId || null;
     
-    console.log('👤 User Profile:', { 
-      userId: user.id, 
-      fullName: user.fullName, 
-      userType: user.userType,
-      fichasApr: fichasApr,
-      fichasInst: fichasInst,
-      finalFichaId: fichaId 
-    });
-    
     res.json({ user: { ...rest, fichaId } });
   } catch (err) {
-    console.error('❌ GetMe Error:', err);
     res.status(500).json({ error: 'Error: ' + err.message });
   }
 };

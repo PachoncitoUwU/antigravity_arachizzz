@@ -5,15 +5,18 @@ import FaceCapture from './FaceCapture';
 import ConfirmDialog from './ConfirmDialog';
 import { socket } from '../services/socket';
 import fetchApi from '../services/api';
+import { useToast } from '../context/ToastContext';
 import { Fingerprint, CreditCard, CheckCircle2, AlertCircle, Loader2, ScanFace, Trash2 } from 'lucide-react';
 import { descriptorToArray } from '../utils/faceApi';
 
-export default function EnrollModal({ open, onClose, aprendiz }) {
+export default function EnrollModal({ open, onClose, aprendiz, onUpdate }) {
+  const { showToast } = useToast();
   const [mode, setMode] = useState(null);
   const [status, setStatus] = useState('idle');
   const [message, setMessage] = useState('');
   const [hasFace, setHasFace] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState({ open: false, action: null, data: null });
+  const [deleting, setDeleting] = useState(false);
 
   // Reiniciar estado
   useEffect(() => {
@@ -37,11 +40,14 @@ export default function EnrollModal({ open, onClose, aprendiz }) {
           method: 'PUT',
           body: JSON.stringify({ userId: aprendiz.id, nfcUid: data.uid })
         });
-        setStatus('success');
-        setMessage(`NFC vinculado: ${data.uid}`);
+        showToast(`NFC vinculado: ${data.uid}`, 'success');
+        setMode(null);
+        setStatus('idle');
+        if (onUpdate) onUpdate();
       } catch (err) {
-        setStatus('error');
-        setMessage(err.message || 'Error al vincular NFC');
+        showToast(err.message || 'Error al vincular NFC', 'error');
+        setMode(null);
+        setStatus('idle');
       }
     };
 
@@ -52,20 +58,24 @@ export default function EnrollModal({ open, onClose, aprendiz }) {
           method: 'PUT',
           body: JSON.stringify({ userId: aprendiz.id, huellaId: data.id })
         });
-        setStatus('success');
-        setMessage(`Huella ID ${data.id} vinculada exitosamente`);
+        showToast(`Huella ID ${data.id} vinculada exitosamente`, 'success');
         if (!aprendiz.huellas) aprendiz.huellas = [];
         aprendiz.huellas.push(data.id);
+        setMode(null);
+        setStatus('idle');
+        if (onUpdate) onUpdate();
       } catch (err) {
-        setStatus('error');
-        setMessage(err.message || 'Error al guardar huella en la BD');
+        showToast(err.message || 'Error al guardar huella en la BD', 'error');
+        setMode(null);
+        setStatus('idle');
       }
     };
 
     const onFingerError = (data) => {
       if (mode !== 'fingerprint') return;
-      setStatus('error');
-      setMessage(data.message || 'Error al registrar huella');
+      showToast(data.message || 'Error al registrar huella', 'error');
+      setMode(null);
+      setStatus('idle');
     };
 
     socket.on('arduino_read_nfc', onNfc);
@@ -96,8 +106,9 @@ export default function EnrollModal({ open, onClose, aprendiz }) {
         body: JSON.stringify({ id: nextId })
       });
     } catch (err) {
-      setStatus('error');
-      setMessage(err.message || 'Error al iniciar enrolamiento');
+      showToast(err.message || 'Error al iniciar enrolamiento', 'error');
+      setMode(null);
+      setStatus('idle');
     }
   };
 
@@ -114,12 +125,15 @@ export default function EnrollModal({ open, onClose, aprendiz }) {
         method: 'POST',
         body: JSON.stringify({ descriptor: descriptorArr })
       });
-      setStatus('success');
-      setMessage(`Reconocimiento facial registrado para ${aprendiz.fullName}`);
+      showToast(`Reconocimiento facial registrado para ${aprendiz.fullName}`, 'success');
       setHasFace(true);
+      setMode(null);
+      setStatus('idle');
+      if (onUpdate) onUpdate();
     } catch (err) {
-      setStatus('error');
-      setMessage(err.message || 'Error al guardar descriptor facial');
+      showToast(err.message || 'Error al guardar descriptor facial', 'error');
+      setMode(null);
+      setStatus('idle');
     }
   };
 
@@ -128,16 +142,18 @@ export default function EnrollModal({ open, onClose, aprendiz }) {
       open: true,
       action: async () => {
         try {
+          setDeleting(true);
           await fetchApi('/serial/finger', {
             method: 'DELETE',
             body: JSON.stringify({ userId: aprendiz.id, huellaId: id })
           });
           aprendiz.huellas = aprendiz.huellas.filter(h => h !== id);
-          setStatus('success');
-          setMessage(`Huella ${id} eliminada correctamente`);
+          showToast(`Huella ${id} eliminada correctamente`, 'success');
+          if (onUpdate) onUpdate();
         } catch(err) {
-          setStatus('error');
-          setMessage(err.message || 'Error al eliminar huella');
+          showToast(err.message || 'Error al eliminar huella', 'error');
+        } finally {
+          setDeleting(false);
         }
       },
       data: { id }
@@ -149,17 +165,51 @@ export default function EnrollModal({ open, onClose, aprendiz }) {
       open: true,
       action: async () => {
         try {
+          setDeleting(true);
           await fetchApi(`/auth/face-descriptor-for/${aprendiz.id}`, { method: 'DELETE' });
           setHasFace(false);
           aprendiz.faceDescriptor = null;
-          setMessage('Reconocimiento facial eliminado');
-          setStatus('success');
+          showToast('Reconocimiento facial eliminado correctamente', 'success');
+          if (onUpdate) onUpdate();
         } catch (err) {
-          setStatus('error');
-          setMessage(err.message || 'Error al eliminar reconocimiento facial');
+          showToast(err.message || 'Error al eliminar reconocimiento facial', 'error');
+        } finally {
+          setDeleting(false);
         }
       },
       data: null
+    });
+  };
+
+  const deleteNfc = async () => {
+    setConfirmDialog({
+      open: true,
+      action: async () => {
+        try {
+          setDeleting(true);
+          // Necesitamos obtener el fichaId del aprendiz
+          // Asumiendo que el aprendiz tiene una propiedad fichaId o lo obtenemos del contexto
+          const fichaId = aprendiz.fichaId || aprendiz.ficha?.id;
+          
+          if (!fichaId) {
+            showToast('No se pudo determinar la ficha del aprendiz', 'error');
+            return;
+          }
+
+          await fetchApi(`/admin/fichas/${fichaId}/aprendices/${aprendiz.id}/nfc`, {
+            method: 'DELETE'
+          });
+          
+          aprendiz.nfcUid = null;
+          showToast('NFC eliminado correctamente', 'success');
+          if (onUpdate) onUpdate();
+        } catch (err) {
+          showToast(err.message || 'Error al eliminar NFC', 'error');
+        } finally {
+          setDeleting(false);
+        }
+      },
+      data: { type: 'nfc' }
     });
   };
 
@@ -182,20 +232,37 @@ export default function EnrollModal({ open, onClose, aprendiz }) {
               {/* NFC */}
               <div className="flex justify-between items-center bg-gray-50 dark:bg-gray-800 p-2 rounded text-sm">
                 <span className="text-gray-600 dark:text-gray-300">NFC: <strong>{aprendiz?.nfcUid || 'Ninguno'}</strong></span>
+                {aprendiz?.nfcUid && (
+                  <button 
+                    onClick={deleteNfc}
+                    disabled={deleting}
+                    className="text-red-500 hover:text-red-700 text-xs font-bold px-2 py-1 bg-red-50 dark:bg-red-900/20 rounded hover:bg-red-100 transition-colors flex items-center gap-1"
+                  >
+                    {deleting ? <Loader2 size={11} className="animate-spin" /> : <Trash2 size={11} />}
+                    Eliminar
+                  </button>
+                )}
               </div>
 
               {/* Huellas */}
-              {aprendiz?.huellas?.length > 0 && (
-                <div className="flex flex-col gap-2 bg-gray-50 dark:bg-gray-800 p-2 rounded text-sm">
-                  <span className="text-gray-600 dark:text-gray-300">Huellas guardadas:</span>
-                  {aprendiz.huellas.map(hId => (
-                    <div key={hId} className="flex justify-between items-center bg-white dark:bg-gray-700 px-3 py-1 border border-gray-200 dark:border-gray-600 rounded">
-                      <span className="font-mono text-purple-600 dark:text-purple-400">ID: {hId}</span>
-                      <button onClick={() => removeFingerprint(hId)} className="text-red-500 hover:text-red-700 text-xs font-bold px-2 py-1 bg-red-50 dark:bg-red-900/20 rounded hover:bg-red-100 transition-colors">Eliminar</button>
-                    </div>
-                  ))}
-                </div>
-              )}
+              <div className="flex flex-col gap-2 bg-gray-50 dark:bg-gray-800 p-2 rounded text-sm">
+                <span className="text-gray-600 dark:text-gray-300">
+                  Huellas: {aprendiz?.huellas?.length > 0 ? '' : <strong>No registradas</strong>}
+                </span>
+                {aprendiz?.huellas?.length > 0 && aprendiz.huellas.map(hId => (
+                  <div key={hId} className="flex justify-between items-center bg-white dark:bg-gray-700 px-3 py-1 border border-gray-200 dark:border-gray-600 rounded">
+                    <span className="font-mono text-purple-600 dark:text-purple-400">ID: {hId}</span>
+                    <button 
+                      onClick={() => removeFingerprint(hId)} 
+                      disabled={deleting}
+                      className="text-red-500 hover:text-red-700 text-xs font-bold px-2 py-1 bg-red-50 dark:bg-red-900/20 rounded hover:bg-red-100 transition-colors flex items-center gap-1"
+                    >
+                      {deleting ? <Loader2 size={11} className="animate-spin" /> : <Trash2 size={11} />}
+                      Eliminar
+                    </button>
+                  </div>
+                ))}
+              </div>
 
               {/* Cara */}
               <div className="flex justify-between items-center bg-gray-50 dark:bg-gray-800 p-2 rounded text-sm">
@@ -203,9 +270,13 @@ export default function EnrollModal({ open, onClose, aprendiz }) {
                   Cara: <strong>{hasFace ? '✓ Registrada' : 'No registrada'}</strong>
                 </span>
                 {hasFace && (
-                  <button onClick={deleteFaceDescriptor}
-                    className="text-red-500 hover:text-red-700 text-xs font-bold px-2 py-1 bg-red-50 rounded flex items-center gap-1">
-                    <Trash2 size={11} /> Eliminar
+                  <button 
+                    onClick={deleteFaceDescriptor}
+                    disabled={deleting}
+                    className="text-red-500 hover:text-red-700 text-xs font-bold px-2 py-1 bg-red-50 rounded flex items-center gap-1"
+                  >
+                    {deleting ? <Loader2 size={11} className="animate-spin" /> : <Trash2 size={11} />}
+                    Eliminar
                   </button>
                 )}
               </div>
@@ -268,29 +339,6 @@ export default function EnrollModal({ open, onClose, aprendiz }) {
             <p className="text-sm text-gray-400 mt-2">Esperando respuesta del Arduino...</p>
           </div>
         )}
-
-        {status === 'success' && (
-          <div className="py-6 flex flex-col items-center justify-center">
-            <CheckCircle2 size={56} className="text-green-500 mb-4" />
-            <h3 className="text-xl font-bold text-gray-900 mb-2">¡Asignación Exitosa!</h3>
-            <p className="text-green-600 bg-green-50 px-4 py-2 rounded-lg">{message}</p>
-          </div>
-        )}
-
-        {status === 'error' && (
-          <div className="py-6 flex flex-col items-center justify-center">
-            <AlertCircle size={56} className="text-red-500 mb-4" />
-            <h3 className="text-xl font-bold text-gray-900 mb-2">Se produjo un error</h3>
-            <p className="text-red-600 bg-red-50 px-4 py-2 rounded-lg">{message}</p>
-            <button onClick={() => { setStatus('idle'); setMode(null); }} className="btn-secondary mt-6 border-red-200 text-red-600 hover:bg-red-50">Intentar de Nuevo</button>
-          </div>
-        )}
-
-        {status === 'success' && (
-          <button onClick={() => { setStatus('idle'); setMode(null); }} className="btn-primary w-full mt-4">
-            Registrar otro / Continuar
-          </button>
-        )}
       </div>
     </Modal>
     
@@ -298,10 +346,18 @@ export default function EnrollModal({ open, onClose, aprendiz }) {
       open={confirmDialog.open}
       onClose={() => setConfirmDialog({ open: false, action: null, data: null })}
       onConfirm={confirmDialog.action}
-      title={confirmDialog.data?.id ? "Eliminar Huella" : "Eliminar Reconocimiento Facial"}
-      message={confirmDialog.data?.id 
-        ? `¿Estás seguro de eliminar la huella ${confirmDialog.data.id}? Esta acción no se puede deshacer.`
-        : "¿Eliminar el reconocimiento facial de este aprendiz? Esta acción no se puede deshacer."}
+      title={
+        confirmDialog.data?.id ? "Eliminar Huella" : 
+        confirmDialog.data?.type === 'nfc' ? "Eliminar NFC" :
+        "Eliminar Reconocimiento Facial"
+      }
+      message={
+        confirmDialog.data?.id 
+          ? `¿Estás seguro de eliminar la huella ${confirmDialog.data.id}? Esta acción no se puede deshacer.`
+          : confirmDialog.data?.type === 'nfc'
+          ? "¿Eliminar el NFC de este aprendiz? Esta acción no se puede deshacer."
+          : "¿Eliminar el reconocimiento facial de este aprendiz? Esta acción no se puede deshacer."
+      }
       confirmText="Eliminar"
       cancelText="Cancelar"
       danger={true}

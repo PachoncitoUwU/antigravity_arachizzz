@@ -690,7 +690,7 @@ function FlappyGame({ onClose, currentUser }) {
                   </button>
                 )}
               </div>
-              <button style={btn} onClick={e=>{e.stopPropagation();jump();}}
+              <button onClick={e=>{e.stopPropagation();jump();}}
                 onMouseDown={e=>e.currentTarget.style.transform='scale(0.93)'}
                 onMouseUp={e=>e.currentTarget.style.transform='scale(1)'}
                 onTouchStart={e=>{e.preventDefault();e.currentTarget.style.transform='scale(0.93)';}}

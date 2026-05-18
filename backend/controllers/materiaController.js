@@ -125,7 +125,7 @@ const deleteMateria = async (req, res) => {
 // Editar materia
 const updateMateria = async (req, res) => {
   const { id } = req.params;
-  const { nombre, tipo } = req.body;
+  const { nombre, tipo, instructorId } = req.body;
   const userId = req.user.id;
   const userType = req.user.userType;
   
@@ -151,10 +151,44 @@ const updateMateria = async (req, res) => {
     if (!isLider && !isCreator && !isAdmin) {
       return res.status(403).json({ error: 'No tienes permiso para editar esta materia' });
     }
+
+    // Preparar datos de actualización
+    const updateData = { nombre, tipo };
+
+    // Solo admin puede cambiar el instructor
+    if (instructorId !== undefined && isAdmin) {
+      // Si instructorId es string vacío, poner null
+      updateData.instructorId = instructorId === '' ? null : instructorId;
+
+      // Si se asigna un instructor, verificar que existe y está en la ficha
+      if (instructorId && instructorId !== '') {
+        const instructor = await prisma.user.findUnique({
+          where: { id: instructorId }
+        });
+
+        if (!instructor || instructor.userType !== 'instructor') {
+          return res.status(400).json({ error: 'El instructor especificado no es válido' });
+        }
+
+        // Verificar que el instructor está en la ficha
+        const fichaInstructor = await prisma.fichaInstructor.findUnique({
+          where: {
+            fichaId_instructorId: {
+              fichaId: materia.fichaId,
+              instructorId
+            }
+          }
+        });
+
+        if (!fichaInstructor) {
+          return res.status(400).json({ error: 'El instructor no pertenece a esta ficha' });
+        }
+      }
+    }
     
     const updatedMateria = await prisma.materia.update({
       where: { id },
-      data: { nombre, tipo },
+      data: updateData,
       include: {
         instructor: { select: { id: true, fullName: true } },
         ficha: { select: { numero: true } }

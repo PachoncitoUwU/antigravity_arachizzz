@@ -1,0 +1,59 @@
+name: proyecto-arachiz
+
+services:
+  backend:
+    container_name: arachiz_backend
+    build: ./backend
+    working_dir: /app
+    command: node server.js
+    ports:
+      - "${HOST_PORT_BACKEND:-3000}:3000"
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    environment:
+      - PORT=3000
+      - HOST=0.0.0.0
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+    depends_on:
+      - db
+
+  frontend:
+    container_name: arachiz_frontend
+    build: ./frontend
+    working_dir: /app
+    command: npm run dev -- --host
+    ports:
+      - "${HOST_PORT_FRONTEND:-5173}:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - VITE_API_URL=http://localhost:${HOST_PORT_BACKEND:-3000}
+      - HOST=0.0.0.0
+    depends_on:
+      - backend
+
+  db:
+    container_name: arachiz_db
+    image: postgres:16-alpine
+    ports:
+      - "${HOST_PORT_DB:-5433}:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=${DB_NAME}
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  db_data:
