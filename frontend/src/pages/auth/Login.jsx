@@ -40,36 +40,36 @@ export default function Login() {
   const setField = (key) => (e) => setForm(prev => ({ ...prev, [key]: e.target.value }));
 
   return (
-    <div className="min-h-screen bg-[#F5F5F5] flex items-center justify-center p-4 relative overflow-hidden">
-      {/* Decoración fondo animada */}
+    <div className="min-h-screen bg-gradient-to-br from-[#4285F4] to-[#34A853] flex items-center justify-center p-4 relative overflow-hidden">
       <style>{`
-        @keyframes float {
-          0%, 100% { transform: translate(0px, 0px); }
-          50% { transform: translate(20px, -20px); }
+        @keyframes float-up {
+          0% {
+            transform: translateY(0) rotate(0deg);
+            opacity: 1;
+          }
+          100% {
+            transform: translateY(-120vh) rotate(720deg);
+            opacity: 0;
+          }
         }
-        @keyframes float-reverse {
-          0%, 100% { transform: translate(0px, 0px); }
-          50% { transform: translate(-20px, 20px); }
+        .circle-float {
+          position: absolute;
+          bottom: -150px;
+          border-radius: 50%;
+          animation: float-up linear infinite;
         }
-        @keyframes pulse-grow {
-          0%, 100% { transform: scale(1); }
-          50% { transform: scale(1.1); }
-        }
-        @keyframes rotate-slow {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-        .float-animation { animation: float 6s ease-in-out infinite; }
-        .float-reverse { animation: float-reverse 8s ease-in-out infinite; }
-        .pulse-animation { animation: pulse-grow 4s ease-in-out infinite; }
-        .rotate-animation { animation: rotate-slow 20s linear infinite; }
       `}</style>
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -bottom-32 -right-32 w-96 h-96 bg-blue-100 rounded-full opacity-40 float-animation"/>
-        <div className="absolute -top-16 -left-16 w-64 h-64 bg-green-100 rounded-full opacity-30 float-reverse"/>
-        <div className="absolute top-1/4 right-1/4 w-48 h-48 bg-purple-100 rounded-full opacity-25 pulse-animation" style={{animationDelay: '0.5s'}}/>
-        <div className="absolute bottom-1/3 left-1/3 w-72 h-72 bg-yellow-100 rounded-full opacity-20 float-animation" style={{animationDelay: '2s'}}/>
-        <div className="absolute top-1/2 left-1/4 w-40 h-40 border-2 border-blue-200 rounded-full opacity-20 rotate-animation"/>
+        <div className="circle-float w-20 h-20 bg-white opacity-20" style={{left: '10%', animationDuration: '20s', animationDelay: '0s'}}/>
+        <div className="circle-float w-12 h-12 bg-white opacity-15" style={{left: '20%', animationDuration: '18s', animationDelay: '2s'}}/>
+        <div className="circle-float w-32 h-32 bg-white opacity-10" style={{left: '30%', animationDuration: '25s', animationDelay: '4s'}}/>
+        <div className="circle-float w-16 h-16 bg-white opacity-20" style={{left: '40%', animationDuration: '22s', animationDelay: '0s'}}/>
+        <div className="circle-float w-28 h-28 bg-white opacity-15" style={{left: '50%', animationDuration: '20s', animationDelay: '3s'}}/>
+        <div className="circle-float w-14 h-14 bg-white opacity-20" style={{left: '60%', animationDuration: '23s', animationDelay: '1s'}}/>
+        <div className="circle-float w-24 h-24 bg-white opacity-10" style={{left: '70%', animationDuration: '19s', animationDelay: '5s'}}/>
+        <div className="circle-float w-10 h-10 bg-white opacity-20" style={{left: '80%', animationDuration: '21s', animationDelay: '2s'}}/>
+        <div className="circle-float w-36 h-36 bg-white opacity-15" style={{left: '85%', animationDuration: '24s', animationDelay: '0s'}}/>
+        <div className="circle-float w-12 h-12 bg-white opacity-20" style={{left: '15%', animationDuration: '22s', animationDelay: '4s'}}/>
       </div>
 
       <div className="w-full max-w-sm relative">
@@ -78,7 +78,7 @@ export default function Login() {
           <div className="flex justify-center mb-6">
             <img alt="Arachiz" className="h-14 md:h-16 object-contain dark:invert transition-all duration-300" src="/ArachizLogoPNG.png" />
           </div>
-          <h2 className="text-2xl font-bold text-gray-900 mt-4">Bienvenido de vuelta</h2>
+          <h2 className="text-2xl font-bold text-white mt-4">Bienvenido de vuelta</h2>
         </div>
 
         <div className="bg-white rounded-2xl shadow-card p-8 space-y-5 animate-fade-in">
