@@ -41,10 +41,36 @@ export default function Register() {
   const accentColor = userType === 'instructor' ? '#4285F4' : userType === 'administrador' ? '#EA4335' : '#34A853';
 
   return (
-    <div className="min-h-screen bg-[#F5F5F5] flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-[#4285F4] to-[#34A853] flex items-center justify-center p-4 relative overflow-hidden">
+      <style>{`
+        @keyframes float-up {
+          0% {
+            transform: translateY(0) rotate(0deg);
+            opacity: 1;
+          }
+          100% {
+            transform: translateY(-120vh) rotate(720deg);
+            opacity: 0;
+          }
+        }
+        .circle-float {
+          position: absolute;
+          bottom: -150px;
+          border-radius: 50%;
+          animation: float-up linear infinite;
+        }
+      `}</style>
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -bottom-32 -right-32 w-96 h-96 bg-blue-100 rounded-full opacity-40"/>
-        <div className="absolute -top-16 -left-16 w-64 h-64 bg-green-100 rounded-full opacity-30"/>
+        <div className="circle-float w-20 h-20 bg-white opacity-20" style={{left: '10%', animationDuration: '20s', animationDelay: '0s'}}/>
+        <div className="circle-float w-12 h-12 bg-white opacity-15" style={{left: '20%', animationDuration: '18s', animationDelay: '2s'}}/>
+        <div className="circle-float w-32 h-32 bg-white opacity-10" style={{left: '30%', animationDuration: '25s', animationDelay: '4s'}}/>
+        <div className="circle-float w-16 h-16 bg-white opacity-20" style={{left: '40%', animationDuration: '22s', animationDelay: '0s'}}/>
+        <div className="circle-float w-28 h-28 bg-white opacity-15" style={{left: '50%', animationDuration: '20s', animationDelay: '3s'}}/>
+        <div className="circle-float w-14 h-14 bg-white opacity-20" style={{left: '60%', animationDuration: '23s', animationDelay: '1s'}}/>
+        <div className="circle-float w-24 h-24 bg-white opacity-10" style={{left: '70%', animationDuration: '19s', animationDelay: '5s'}}/>
+        <div className="circle-float w-10 h-10 bg-white opacity-20" style={{left: '80%', animationDuration: '21s', animationDelay: '2s'}}/>
+        <div className="circle-float w-36 h-36 bg-white opacity-15" style={{left: '85%', animationDuration: '24s', animationDelay: '0s'}}/>
+        <div className="circle-float w-12 h-12 bg-white opacity-20" style={{left: '15%', animationDuration: '22s', animationDelay: '4s'}}/>
       </div>
 
       <div className="w-full max-w-sm relative">
@@ -52,7 +78,7 @@ export default function Register() {
           <div className="flex justify-center mb-6">
             <img src="/ArachizLogoPNG.png" alt="Arachiz" className="h-14 md:h-16 object-contain dark:invert transition-all duration-300" />
           </div>
-          <h1 className="text-3xl font-bold text-gray-900">{t('register', 'create')}</h1>
+          <h1 className="text-3xl font-bold text-white">{t('register', 'create')}</h1>
         </div>
 
         <div className="bg-white rounded-2xl shadow-card p-8 space-y-4">
