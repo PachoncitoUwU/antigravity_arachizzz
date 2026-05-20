@@ -501,7 +501,7 @@ exports.createWompiPayment = async (req, res) => {
 
   } catch (error) {
     console.error('Error creating Wompi payment:', error);
-    res.status(500).json({ error: 'Error al crear el pago' });
+    res.status(500).json({ error: `Error al crear el pago: ${error.message}` });
   }
 };
 
