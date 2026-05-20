@@ -41,6 +41,7 @@ import AprendizCompañeros from './pages/aprendiz/Compañeros';
 import Configuracion from './pages/Configuracion';
 import JoinFicha from './pages/JoinFicha';
 import ScanQR from './pages/ScanQR';
+import PaymentStatus from './pages/PaymentStatus';
 
 export default function App() {
   return (
@@ -58,6 +59,7 @@ export default function App() {
               <Route path="/auth/callback" element={<GoogleCallback />} />
               <Route path="/unirse/:code" element={<JoinFicha />} />
               <Route path="/scan-qr" element={<ScanQR />} />
+              <Route path="/payment-status" element={<PaymentStatus />} />
 
               <Route path="/instructor" element={<MainLayout allowedRoles={['instructor']} />}>
                 <Route index element={<Navigate to="dashboard" replace />} />

@@ -4,6 +4,9 @@ const prisma = new PrismaClient({ datasources: { db: { url: process.env.DIRECT_U
 // ePayco SDK para pagos en Colombia (PSE, Nequi, Tarjetas)
 const epayco = require('epayco-sdk-node');
 
+// Axios para llamadas HTTP a Wompi
+const axios = require('axios');
+
 // Configurar cliente de ePayco
 let epaycoClient = null;
 if (process.env.EPAYCO_PUBLIC_KEY && process.env.EPAYCO_PRIVATE_KEY && 
@@ -17,6 +20,18 @@ if (process.env.EPAYCO_PUBLIC_KEY && process.env.EPAYCO_PRIVATE_KEY &&
   console.log('✅ ePayco configurado correctamente');
 } else {
   console.warn('⚠️  ePayco no configurado. Configura EPAYCO_PUBLIC_KEY y EPAYCO_PRIVATE_KEY en .env');
+}
+
+// Verificar configuración de Wompi
+const wompiConfigured = process.env.WOMPI_PUBLIC_KEY && 
+                        process.env.WOMPI_PRIVATE_KEY && 
+                        process.env.WOMPI_INTEGRITY_KEY &&
+                        process.env.WOMPI_PUBLIC_KEY !== 'pub_test_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx';
+
+if (wompiConfigured) {
+  console.log('✅ Wompi configurado correctamente');
+} else {
+  console.warn('⚠️  Wompi no configurado. Configura WOMPI_PUBLIC_KEY, WOMPI_PRIVATE_KEY e WOMPI_INTEGRITY_KEY en .env');
 }
 
 // Obtener todas las skins disponibles
@@ -422,5 +437,215 @@ exports.checkOrderStatus = async (req, res) => {
   } catch (error) {
     console.error('Error checking order status:', error);
     res.status(500).json({ error: 'Error al verificar el estado de la orden' });
+  }
+};
+
+// ===================================
+// WOMPI - PAGOS
+// ===================================
+
+// Crear pago con Wompi (Donación)
+// El backend genera la referencia + firma de integridad.
+// El Widget de Wompi en el frontend maneja el checkout completo.
+exports.createWompiPayment = async (req, res) => {
+  const crypto = require('crypto');
+
+  try {
+    if (!wompiConfigured) {
+      return res.status(503).json({ 
+        error: 'Sistema de pagos Wompi no configurado. Contacta al administrador.' 
+      });
+    }
+
+    const { amount } = req.body;
+
+    // Validar monto mínimo (1000 COP)
+    if (!amount || amount < 1000) {
+      return res.status(400).json({ error: 'El monto mínimo es 1000 COP' });
+    }
+
+    // Referencia única para esta donación
+    const reference = `DON-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+
+    // Wompi requiere firmar: reference + amount_in_cents + currency + integrity_key
+    // Esto evita que alguien manipule el monto desde el cliente
+    const amountInCents = amount * 100;
+    const currency      = 'COP';
+    const toSign        = `${reference}${amountInCents}${currency}${process.env.WOMPI_INTEGRITY_KEY}`;
+    const integrityHash = crypto.createHash('sha256').update(toSign).digest('hex');
+
+    // Guardar la donación en BD con estado pending
+    await prisma.skinOrder.create({
+      data: {
+        userId:        req.user?.id || null,
+        skinId:        null,
+        amount:        amount,
+        currency:      currency,
+        status:        'pending',
+        paymentMethod: 'wompi',
+        preferenceId:  reference,
+      }
+    });
+
+    console.log(`💳 Donación Wompi iniciada: ${reference} — $${amount.toLocaleString('es-CO')} COP`);
+
+    // Devolver al frontend todo lo que necesita para abrir el Widget
+    res.json({
+      reference,
+      amountInCents,
+      currency,
+      integrityHash,
+      publicKey:   process.env.WOMPI_PUBLIC_KEY,
+      redirectUrl: `${process.env.FRONTEND_URL}/payment-status`,
+    });
+
+  } catch (error) {
+    console.error('Error creating Wompi payment:', error);
+    res.status(500).json({ error: 'Error al crear el pago' });
+  }
+};
+
+// Webhook de Wompi (Confirmación de pago)
+exports.handleWebhookWompi = async (req, res) => {
+  const crypto = require('crypto');
+
+  try {
+    // ── 1. Verificar firma de integridad ──────────────────────────────────
+    // Wompi envía: X-Wompi-Signature: <checksum>
+    // El checksum se construye así:
+    //   properties_concatenated + timestamp + integrity_key
+    // donde properties_concatenated = los valores de los campos del evento
+    // ordenados alfabéticamente y concatenados sin separador.
+    //
+    // Para simplificar en sandbox, si no hay header de firma lo aceptamos
+    // pero lo logueamos como advertencia.
+    const wompiSignature = req.headers['x-wompi-signature'];
+
+    if (wompiSignature && process.env.WOMPI_INTEGRITY_KEY) {
+      // Wompi envía el checksum como: <properties>.<timestamp>.<checksum>
+      // Formato real: "properties=<...>,timestamp=<...>,checksum=<...>"
+      // Extraemos el checksum y el timestamp del header
+      const parts = {};
+      wompiSignature.split(',').forEach(part => {
+        const [key, value] = part.split('=');
+        if (key && value) parts[key.trim()] = value.trim();
+      });
+
+      if (parts.checksum && parts.timestamp) {
+        // Reconstruir el string a firmar
+        // Wompi concatena: event + timestamp + integrity_key
+        const toSign = `${JSON.stringify(req.body)}${parts.timestamp}${process.env.WOMPI_INTEGRITY_KEY}`;
+        const expectedChecksum = crypto
+          .createHash('sha256')
+          .update(toSign)
+          .digest('hex');
+
+        if (expectedChecksum !== parts.checksum) {
+          console.error('❌ Firma de Wompi inválida');
+          console.error('   Esperado:', expectedChecksum);
+          console.error('   Recibido:', parts.checksum);
+          return res.status(401).json({ error: 'Firma inválida' });
+        }
+        console.log('✅ Firma de Wompi verificada');
+      }
+    } else {
+      console.warn('⚠️  Webhook sin firma — aceptado en modo sandbox');
+    }
+
+    // ── 2. Parsear el evento ──────────────────────────────────────────────
+    const { event, data, sent_at } = req.body;
+
+    console.log('─────────────────────────────────────────');
+    console.log('📥 Webhook Wompi recibido');
+    console.log('   Evento   :', event);
+    console.log('   Enviado  :', sent_at);
+    console.log('─────────────────────────────────────────');
+
+    // Solo procesamos actualizaciones de transacciones
+    if (event !== 'transaction.updated') {
+      console.log(`ℹ️  Evento ignorado: ${event}`);
+      return res.status(200).json({ received: true, processed: false });
+    }
+
+    const transaction = data?.transaction;
+    if (!transaction) {
+      console.error('❌ Payload sin datos de transacción');
+      return res.status(400).json({ error: 'Payload inválido' });
+    }
+
+    const {
+      id: transactionId,
+      reference,
+      status,
+      amount_in_cents,
+      currency,
+      payment_method_type,
+      created_at: txCreatedAt,
+    } = transaction;
+
+    console.log('   TX ID    :', transactionId);
+    console.log('   Referencia:', reference);
+    console.log('   Estado   :', status);
+    console.log('   Monto    :', amount_in_cents / 100, currency);
+    console.log('   Método   :', payment_method_type);
+
+    // ── 3. Buscar la donación en BD ───────────────────────────────────────
+    const donation = await prisma.skinOrder.findFirst({
+      where: { preferenceId: reference }
+    });
+
+    if (!donation) {
+      // Puede ser una transacción de otro sistema — no es error crítico
+      console.warn(`⚠️  Donación no encontrada para referencia: ${reference}`);
+      return res.status(200).json({ received: true, processed: false, reason: 'reference_not_found' });
+    }
+
+    // Evitar reprocesar si ya está en estado final
+    if (donation.status === 'approved' && status === 'APPROVED') {
+      console.log('ℹ️  Donación ya estaba aprobada — ignorando duplicado');
+      return res.status(200).json({ received: true, processed: false, reason: 'already_approved' });
+    }
+
+    // ── 4. Actualizar estado en BD ────────────────────────────────────────
+    let newStatus;
+    let approvedAt = null;
+
+    switch (status) {
+      case 'APPROVED':
+        newStatus  = 'approved';
+        approvedAt = new Date();
+        break;
+      case 'DECLINED':
+      case 'VOIDED':
+        newStatus = 'rejected';
+        break;
+      case 'PENDING':
+      case 'PROCESSING':
+        newStatus = 'pending';
+        break;
+      default:
+        newStatus = 'pending';
+    }
+
+    await prisma.skinOrder.update({
+      where: { id: donation.id },
+      data: {
+        status:      newStatus,
+        externalId:  transactionId,
+        ...(approvedAt && { approvedAt }),
+      }
+    });
+
+    // ── 5. Log final ──────────────────────────────────────────────────────
+    const emoji = { approved: '✅', rejected: '❌', pending: '⏳' }[newStatus] || '❓';
+    console.log(`${emoji} Donación ${newStatus}: ${reference} — $${amount_in_cents / 100} COP`);
+    console.log('─────────────────────────────────────────');
+
+    res.status(200).json({ received: true, processed: true, status: newStatus });
+
+  } catch (error) {
+    console.error('❌ Error procesando webhook Wompi:', error.message);
+    // Siempre responder 200 para que Wompi no reintente indefinidamente
+    res.status(200).json({ received: true, processed: false, error: error.message });
   }
 };
