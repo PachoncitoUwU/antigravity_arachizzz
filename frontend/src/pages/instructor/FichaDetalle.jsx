@@ -8,9 +8,10 @@ import ConfirmDialog from '../../components/ConfirmDialog';
 import EnrollModal from '../../components/EnrollModal';
 import AprendizPerfilModal from '../../components/AprendizPerfilModal';
 import MateriaInfoModal from '../../components/MateriaInfoModal';
+import NotificacionesModal from '../../components/NotificacionesModal';
 import {
   ArrowLeft, Users, BookOpen, Calendar, Copy, RefreshCw, Check, 
-  Download, Loader, Edit2, UserMinus, Fingerprint, Link, Clock, Plus, Star, Eye, EyeOff, History
+  Download, Loader, Edit2, UserMinus, Fingerprint, Link, Clock, Plus, Star, Eye, EyeOff, Bell
 } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3000';
@@ -58,10 +59,8 @@ export default function FichaDetalle() {
   // Estado para fichas ancladas
   const [isPinned, setIsPinned] = useState(false);
   
-  // Estados para historial
-  const [historial, setHistorial] = useState([]);
-  const [loadingHistorial, setLoadingHistorial] = useState(false);
-  const [showHistorial, setShowHistorial] = useState(false);
+  // Estados para notificaciones
+  const [showNotificaciones, setShowNotificaciones] = useState(false);
 
   useEffect(() => {
     loadFicha();
@@ -88,25 +87,7 @@ export default function FichaDetalle() {
     }
   };
 
-  const loadHistorial = async () => {
-    try {
-      setLoadingHistorial(true);
-      const data = await fetchApi(`/fichas/${id}/historial?limit=50`);
-      setHistorial(data.historial || []);
-    } catch (err) {
-      console.error('Error cargando historial:', err);
-      showToast(err.message || 'Error al cargar el historial', 'error');
-    } finally {
-      setLoadingHistorial(false);
-    }
-  };
 
-  const toggleHistorial = () => {
-    if (!showHistorial && historial.length === 0) {
-      loadHistorial();
-    }
-    setShowHistorial(!showHistorial);
-  };
 
   const copyCode = () => {
     navigator.clipboard.writeText(ficha.code);
@@ -618,11 +599,38 @@ export default function FichaDetalle() {
           </div>
         </div>
 
-        {/* Código de invitación (1 columna) */}
-        <div className="card">
-          <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">
-            Código de Invitación
-          </h3>
+        {/* Código de invitación y Notificaciones (1 columna) */}
+        <div className="space-y-4">
+          {/* Botón de Notificaciones */}
+          <div className="card">
+            <button
+              onClick={() => setShowNotificaciones(true)}
+              className="w-full flex items-center justify-between p-3 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-xl transition-colors group"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center group-hover:bg-blue-100 dark:group-hover:bg-blue-900/30 transition-colors">
+                  <Bell size={20} className="text-blue-600 dark:text-blue-400" />
+                </div>
+                <div className="text-left">
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                    Notificaciones
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Ver actividad de la ficha
+                  </p>
+                </div>
+              </div>
+              <div className="text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300 transition-colors">
+                →
+              </div>
+            </button>
+          </div>
+
+          {/* Código de Invitación */}
+          <div className="card">
+            <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">
+              Código de Invitación
+            </h3>
           
           <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-xl mb-3 relative">
             {showCode ? (
@@ -669,6 +677,7 @@ export default function FichaDetalle() {
                 Regenerar
               </button>
             )}
+          </div>
           </div>
         </div>
       </div>
@@ -1026,89 +1035,6 @@ export default function FichaDetalle() {
         </div>
       )}
 
-      {/* Historial de Cambios */}
-      <div className="card">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <History size={20} className="text-gray-500" />
-            <h2 className="text-lg font-bold text-gray-900 dark:text-white">Historial de Cambios</h2>
-          </div>
-          <button
-            onClick={toggleHistorial}
-            className="btn-secondary text-sm flex items-center gap-2"
-          >
-            {showHistorial ? 'Ocultar' : 'Ver Historial'}
-          </button>
-        </div>
-
-        {showHistorial && (
-          <div className="space-y-2">
-            {loadingHistorial ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader className="animate-spin text-gray-400" size={32} />
-              </div>
-            ) : historial.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                <History size={48} className="mx-auto mb-2 opacity-30" />
-                <p>No hay cambios registrados</p>
-              </div>
-            ) : (
-              <div className="space-y-2 max-h-96 overflow-y-auto">
-                {historial.map((cambio) => (
-                  <div
-                    key={cambio.id}
-                    className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-100 dark:border-gray-700"
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className="flex-shrink-0">
-                        {cambio.usuario.avatarUrl ? (
-                          <img
-                            src={resolveAvatar(cambio.usuario.avatarUrl)}
-                            alt={cambio.usuario.fullName}
-                            className="w-8 h-8 rounded-full object-cover"
-                          />
-                        ) : (
-                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white font-bold text-sm">
-                            {cambio.usuario.fullName.charAt(0).toUpperCase()}
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="font-semibold text-gray-900 dark:text-gray-100 text-sm">
-                            {cambio.usuario.fullName}
-                          </span>
-                          <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
-                            cambio.usuario.userType === 'administrador'
-                              ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                              : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-                          }`}>
-                            {cambio.usuario.userType === 'administrador' ? 'Admin' : 'Instructor'}
-                          </span>
-                        </div>
-                        <p className="text-sm text-gray-700 dark:text-gray-300 mb-1">
-                          {cambio.descripcion}
-                        </p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                          {new Date(cambio.fechaHora).toLocaleString('es-CO', {
-                            timeZone: 'America/Bogota',
-                            year: 'numeric',
-                            month: 'short',
-                            day: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
       {/* Modals */}
       <Modal open={modalMateria} onClose={() => setModalMateria(false)} title="Agregar Materia">
         <form onSubmit={handleCreateMateria} className="space-y-4">
@@ -1306,6 +1232,14 @@ export default function FichaDetalle() {
         confirmText={confirmDialog.data?.type === 'regenerate' ? "Regenerar" : "Eliminar"}
         cancelText="Cancelar"
         danger={true}
+      />
+
+      {/* Modal de Notificaciones */}
+      <NotificacionesModal
+        isOpen={showNotificaciones}
+        onClose={() => setShowNotificaciones(false)}
+        fichaId={id}
+        userRole="instructor"
       />
     </div>
   );

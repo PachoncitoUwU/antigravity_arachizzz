@@ -252,9 +252,9 @@ model UserSkin {
 }
 
 model SkinOrder {
-  id            String    @id @default(cuid())
-  userId        String
-  skinId        String
+  id            String     @id @default(cuid())
+  userId        String?
+  skinId        String?
   amount        Float
   currency      String    @default("COP")
   status        String
@@ -263,10 +263,11 @@ model SkinOrder {
   preferenceId  String?
   createdAt     DateTime  @default(now())
   approvedAt    DateTime?
-  skin          SnakeSkin @relation(fields: [skinId], references: [id])
+  skin          SnakeSkin? @relation(fields: [skinId], references: [id])
 
   @@index([userId])
   @@index([externalId])
+  @@index([preferenceId])
 }
 
 model RespuestaRapida {

@@ -1,6 +1,6 @@
 import React, { useState, useContext } from 'react';
 import { Link } from 'react-router-dom';
-import { Mail, Lock, GraduationCap } from 'lucide-react';
+import { Mail, Lock, Coffee } from 'lucide-react';
 import { AuthContext } from '../../context/AuthContext';
 import { useSettings } from '../../context/SettingsContext';
 import fetchApi from '../../services/api';
@@ -13,6 +13,126 @@ export default function Login() {
   const [form, setForm] = useState({ email: '', password: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showDonationModal, setShowDonationModal] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [donationAmount, setDonationAmount] = useState('');
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState(null);
+  const [amountError, setAmountError] = useState('');
+
+  const handleDonate = (method) => {
+    setSelectedPaymentMethod(method);
+    setDonationAmount('');
+    setAmountError('');
+    setShowDonationModal(true);
+  };
+
+  const handleAmountChange = (e) => {
+    // Quitar puntos de miles y cualquier carácter no numérico
+    const raw = e.target.value.replace(/\./g, '').replace(/\D/g, '');
+    setDonationAmount(raw);
+
+    const value = parseInt(raw) || 0;
+    if (raw !== '' && value < 1000) {
+      setAmountError('El monto mínimo es $1.000 COP');
+    } else {
+      setAmountError('');
+    }
+  };
+
+  const handleQuickAmount = (amount) => {
+    setDonationAmount(amount.toString());
+    setAmountError('');
+  };
+
+  const parsedAmount = parseInt(donationAmount) || 0;
+  const isAmountValid = parsedAmount >= 1000;
+
+  const handleProceedToConfirm = () => {
+    if (!isAmountValid) {
+      setAmountError(donationAmount === '' ? 'Ingresa un monto' : 'El monto mínimo es $1.000 COP');
+      return;
+    }
+    setShowDonationModal(false);
+    setShowConfirmModal(true);
+  };
+
+  const handleConfirmDonation = async () => {
+    if (selectedPaymentMethod === 'epayco') {
+      openEpayco();
+    } else if (selectedPaymentMethod === 'wompi') {
+      await openWompi();
+    }
+    setShowConfirmModal(false);
+  };
+
+  const openEpayco = () => {
+    if (window.ePayco) {
+      proceedWithEpayco();
+      return;
+    }
+    
+    const script = document.createElement('script');
+    script.src = 'https://checkout.epayco.co/checkout.js';
+    script.async = true;
+    script.onload = proceedWithEpayco;
+    document.body.appendChild(script);
+  };
+
+  const proceedWithEpayco = () => {
+    const handler = window.ePayco.checkout.configure({
+      key: '0e0c3a0fb392af79b26ab1d6c49de2b7',
+      test: false
+    });
+    
+    handler.open({
+      external: "false",
+      amount: parsedAmount.toString(),
+      tax: '0',
+      tax_base: '0',
+      name: 'Donacion - Invitame un cafe',
+      description: 'Apoyo voluntario al mantenimiento de Arachiz',
+      currency: 'cop',
+      country: 'co',
+      lang: 'es',
+      invoice: 'DON-' + Date.now(),
+      response: window.location.origin + '/login',
+      methodsDisable: []
+    });
+  };
+
+  const openWompi = async () => {
+    try {
+      // 1. Pedir al backend la referencia + firma de integridad
+      const response = await fetch(`${API_BASE}/api/skins/wompi-payment`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount: parsedAmount })
+      });
+
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || 'Error al iniciar pago');
+      }
+
+      const { reference, amountInCents, currency, integrityHash, publicKey, redirectUrl } = await response.json();
+
+      // 2. Construir la URL del checkout de Wompi y redirigir directamente
+      // Este método funciona sin necesidad de registrar el dominio
+      const params = new URLSearchParams({
+        'public-key':        publicKey,
+        'currency':          currency,
+        'amount-in-cents':   amountInCents,
+        'reference':         reference,
+        'redirect-url':      redirectUrl,
+        'signature:integrity': integrityHash,
+      });
+
+      window.location.href = `https://checkout.wompi.co/p/?${params.toString()}`;
+
+    } catch (err) {
+      setError('Error al procesar pago con Wompi: ' + err.message);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -41,6 +161,185 @@ export default function Login() {
 
   return (
     <div className="min-h-screen bg-[#F5F5F5] flex items-center justify-center p-4">
+      {/* Botones Flotantes Donación */}
+      <div className="absolute bottom-6 left-6 flex flex-col gap-3 z-50">
+        {/* Botón Wompi */}
+        <button
+          onClick={() => handleDonate('wompi')}
+          className="bg-white border border-gray-200 text-gray-700 px-5 py-3 rounded-full shadow-lg hover:shadow-xl hover:-translate-y-1 hover:border-[#FF6B35] transition-all flex items-center gap-3 group animate-fade-in"
+        >
+          <div className="bg-[#FFF4E5] p-2 rounded-full group-hover:scale-110 transition-transform">
+            <Coffee size={20} className="text-[#FF6B35] fill-current" />
+          </div>
+          <div className="flex flex-col items-start">
+            <span className="text-sm font-bold text-gray-900 leading-none">Wompi</span>
+            <span className="text-xs text-gray-500 font-medium mt-0.5">Apoyar proyecto</span>
+          </div>
+        </button>
+
+        {/* Botón Epayco */}
+        <button
+          onClick={() => handleDonate('epayco')}
+          className="bg-white border border-gray-200 text-gray-700 px-5 py-3 rounded-full shadow-lg hover:shadow-xl hover:-translate-y-1 hover:border-[#4285F4] transition-all flex items-center gap-3 group animate-fade-in"
+        >
+          <div className="bg-[#FFF4E5] p-2 rounded-full group-hover:scale-110 transition-transform">
+            <Coffee size={20} className="text-[#FF9D00] fill-current" />
+          </div>
+          <div className="flex flex-col items-start">
+            <span className="text-sm font-bold text-gray-900 leading-none">Epayco</span>
+            <span className="text-xs text-gray-500 font-medium mt-0.5">Apoyar proyecto</span>
+          </div>
+        </button>
+      </div>
+
+      {/* Modal de Donación */}
+      {showDonationModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100] p-4">
+          <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-sm w-full animate-fade-in">
+            {/* Header */}
+            <div className="text-center mb-6">
+              <div className="w-14 h-14 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-3">
+                <Coffee size={28} className="text-amber-500" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900">Invítame un café ☕</h3>
+              <p className="text-gray-500 text-sm mt-1">
+                Vía <span className="font-semibold capitalize">{selectedPaymentMethod}</span>
+              </p>
+            </div>
+
+            {/* Input principal */}
+            <div className="mb-3">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                ¿Cuánto quieres donar?
+              </label>
+              <div className="relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold text-lg">$</span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  autoFocus
+                  value={donationAmount === '' ? '' : parseInt(donationAmount).toLocaleString('es-CO')}
+                  onChange={handleAmountChange}
+                  placeholder="5.000"
+                  className={`w-full border-2 rounded-xl pl-9 pr-16 py-4 text-xl font-bold focus:outline-none transition-all ${
+                    amountError
+                      ? 'border-red-400 bg-red-50 text-red-700 focus:border-red-500'
+                      : isAmountValid
+                      ? 'border-green-400 bg-green-50 text-gray-900 focus:border-green-500'
+                      : 'border-gray-300 bg-white text-gray-900 focus:border-[#4285F4]'
+                  }`}
+                />
+                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-medium">COP</span>
+              </div>
+
+              {/* Mensaje de error */}
+              {amountError && (
+                <div className="mt-2 flex items-center gap-2 text-red-600 text-sm bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                  <span className="text-base">⚠️</span>
+                  <span>{amountError}</span>
+                </div>
+              )}
+
+              {/* Mensaje de éxito */}
+              {isAmountValid && !amountError && (
+                <div className="mt-2 flex items-center gap-2 text-green-700 text-sm bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                  <span className="text-base">✅</span>
+                  <span>Monto válido — ¡gracias por tu apoyo!</span>
+                </div>
+              )}
+            </div>
+
+            {/* Atajos de monto */}
+            <div className="grid grid-cols-4 gap-2 mb-6">
+              {[2000, 5000, 10000, 20000].map((amount) => (
+                <button
+                  key={amount}
+                  onClick={() => handleQuickAmount(amount)}
+                  className={`py-2 rounded-lg text-xs font-semibold transition-all border ${
+                    parsedAmount === amount
+                      ? 'bg-[#4285F4] text-white border-[#4285F4]'
+                      : 'bg-gray-50 text-gray-600 border-gray-200 hover:border-[#4285F4] hover:text-[#4285F4]'
+                  }`}
+                >
+                  ${(amount / 1000).toFixed(0)}K
+                </button>
+              ))}
+            </div>
+
+            {/* Botones */}
+            <div className="flex gap-3">
+              <button
+                onClick={() => { setShowDonationModal(false); setAmountError(''); }}
+                className="flex-1 bg-gray-100 text-gray-700 py-3 rounded-xl font-semibold text-sm hover:bg-gray-200 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleProceedToConfirm}
+                className={`flex-1 py-3 rounded-xl font-semibold text-sm transition-all ${
+                  isAmountValid
+                    ? 'bg-[#4285F4] text-white hover:bg-[#3367d6] active:scale-95'
+                    : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                }`}
+              >
+                Continuar →
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Confirmación */}
+      {showConfirmModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100] p-4">
+          <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-sm w-full animate-fade-in">
+            <div className="text-center mb-6">
+              <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                <span className="text-3xl">🎉</span>
+              </div>
+              <h3 className="text-xl font-bold text-gray-900">¿Confirmas la donación?</h3>
+              <p className="text-gray-500 text-sm mt-1">Revisa los detalles antes de continuar</p>
+            </div>
+
+            {/* Detalles */}
+            <div className="bg-gray-50 rounded-xl p-5 mb-6 space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-gray-500 text-sm">Monto</span>
+                <span className="text-2xl font-bold text-[#4285F4]">
+                  ${parsedAmount.toLocaleString('es-CO')} COP
+                </span>
+              </div>
+              <div className="border-t border-gray-200 pt-3 flex justify-between items-center">
+                <span className="text-gray-500 text-sm">Método de pago</span>
+                <span className="font-semibold capitalize text-gray-900 bg-white border border-gray-200 px-3 py-1 rounded-full text-sm">
+                  {selectedPaymentMethod}
+                </span>
+              </div>
+            </div>
+
+            <p className="text-xs text-gray-500 text-center mb-6">
+              Serás redirigido a <span className="font-semibold capitalize">{selectedPaymentMethod}</span> para completar el pago de forma segura 🔒
+            </p>
+
+            {/* Botones */}
+            <div className="flex gap-3">
+              <button
+                onClick={() => { setShowConfirmModal(false); setShowDonationModal(true); }}
+                className="flex-1 bg-gray-100 text-gray-700 py-3 rounded-xl font-semibold text-sm hover:bg-gray-200 transition-colors"
+              >
+                ← Atrás
+              </button>
+              <button
+                onClick={handleConfirmDonation}
+                className="flex-1 bg-[#4285F4] text-white py-3 rounded-xl font-semibold text-sm hover:bg-[#3367d6] transition-colors active:scale-95"
+              >
+                Pagar ahora 💳
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Decoración fondo */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -bottom-32 -right-32 w-96 h-96 bg-blue-100 rounded-full opacity-40"/>
