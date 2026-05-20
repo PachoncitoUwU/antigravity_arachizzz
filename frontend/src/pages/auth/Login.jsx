@@ -100,6 +100,20 @@ export default function Login() {
     });
   };
 
+  const loadWompiScript = () => {
+    return new Promise((resolve) => {
+      if (typeof window.WidgetCheckout !== 'undefined') {
+        resolve();
+        return;
+      }
+      const script = document.createElement('script');
+      script.src = "https://checkout.wompi.co/widget.js";
+      script.type = "text/javascript";
+      script.onload = () => resolve();
+      document.head.appendChild(script);
+    });
+  };
+
   const openWompi = async () => {
     try {
       // 1. Pedir al backend la referencia + firma de integridad
@@ -116,18 +130,25 @@ export default function Login() {
 
       const { reference, amountInCents, currency, integrityHash, publicKey, redirectUrl } = await response.json();
 
-      // 2. Construir la URL del checkout de Wompi y redirigir directamente
-      // Este método funciona sin necesidad de registrar el dominio
-      const params = new URLSearchParams({
-        'public-key':        publicKey,
-        'currency':          currency,
-        'amount-in-cents':   amountInCents,
-        'reference':         reference,
-        'redirect-url':      redirectUrl,
-        'signature:integrity': integrityHash,
+      // 2. Cargar el script de Wompi de manera dinámica
+      await loadWompiScript();
+
+      // 3. Abrir el Widget de Wompi oficial
+      const checkout = new window.WidgetCheckout({
+        currency,
+        amountInCents,
+        reference,
+        publicKey,
+        signature: {
+          integrity: integrityHash
+        },
+        redirectUrl
       });
 
-      window.location.href = `https://checkout.wompi.co/p/?${params.toString()}`;
+      checkout.open((result) => {
+        const transaction = result.transaction;
+        console.log('Transaction status:', transaction.status);
+      });
 
     } catch (err) {
       setError('Error al procesar pago con Wompi: ' + err.message);
