@@ -474,16 +474,40 @@ exports.createWompiPayment = async (req, res) => {
     const toSign        = `${reference}${amountInCents}${currency}${process.env.WOMPI_INTEGRITY_KEY}`;
     const integrityHash = crypto.createHash('sha256').update(toSign).digest('hex');
 
+    // 1. Obtener un userId de respaldo si no está autenticado (donación de invitado)
+    let targetUserId = req.user?.id;
+    if (!targetUserId) {
+      const defaultUser = await prisma.user.findFirst({
+        where: { email: 'admin@arachiz.com' }
+      }) || await prisma.user.findFirst();
+      if (!defaultUser) {
+        return res.status(500).json({ error: 'No se encontraron usuarios en la base de datos para asociar la transacción.' });
+      }
+      targetUserId = defaultUser.id;
+    }
+
+    // 2. Obtener la skin "Clásica" por defecto para asociar la transacción
+    const classicSkin = await prisma.snakeSkin.findFirst({
+      where: { name: 'Clásica' }
+    }) || await prisma.snakeSkin.findFirst();
+    if (!classicSkin) {
+      return res.status(500).json({ error: 'No se encontraron skins en la base de datos para asociar la transacción.' });
+    }
+
     // Guardar la donación en BD con estado pending
     await prisma.skinOrder.create({
       data: {
-        userId:        req.user?.id || null,
-        skinId:        null,
+        userId:        targetUserId,
         amount:        amount,
         currency:      currency,
         status:        'pending',
         paymentMethod: 'wompi',
         preferenceId:  reference,
+        skin: {
+          connect: {
+            id: classicSkin.id
+          }
+        }
       }
     });
 
