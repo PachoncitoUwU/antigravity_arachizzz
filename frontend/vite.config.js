@@ -22,6 +22,9 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      workbox: {
+        maximumFileSizeToCacheInBytes: 4000000, // Permitir precaché de hasta 4MB para assets grandes
+      },
       manifest: {
         name: 'Arachiz',
         short_name: 'Arachiz',

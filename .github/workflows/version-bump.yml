@@ -7,6 +7,9 @@ on:
       - master
       - develop
 
+permissions:
+  contents: write
+
 jobs:
   version-bump:
     runs-on: ubuntu-latest
