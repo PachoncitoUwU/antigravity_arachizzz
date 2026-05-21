@@ -1,0 +1,23 @@
+{
+  "name": "Arachiz",
+  "short_name": "Arachiz",
+  "description": "Sistema de gestión académico y gamificación.",
+  "start_url": "/?v=2",
+  "display": "standalone",
+  "background_color": "#FFFFFF",
+  "theme_color": "#4285F4",
+  "icons": [
+    {
+      "src": "/imagenApp.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/imagenApp.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

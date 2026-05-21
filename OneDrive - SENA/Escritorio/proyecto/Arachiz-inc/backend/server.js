@@ -1,0 +1,117 @@
+require('dotenv').config();
+const express = require('express');
+const cors = require('cors');
+const path = require('path');
+const http = require('http');
+const { Server } = require('socket.io');
+const session = require('express-session');
+const passport = require('./config/passport');
+const jwt = require('jsonwebtoken');
+
+const authRoutes = require('./routes/authRoutes');
+const fichaRoutes = require('./routes/fichaRoutes');
+const materiaRoutes = require('./routes/materiaRoutes');
+const asistenciaRoutes = require('./routes/asistenciaRoutes');
+const excusaRoutes = require('./routes/excusaRoutes');
+const horarioRoutes = require('./routes/horarioRoutes');
+const exportRoutes = require('./routes/exportRoutes');
+const serialRoutes = require('./routes/serialRoutes');
+const snakeRoutes  = require('./routes/snakeRoutes');
+const gamesRoutes  = require('./routes/gamesRoutes');
+const skinRoutes   = require('./routes/skinRoutes');
+const materiaEvitadaRoutes = require('./routes/materiaEvitada');
+const qrRoutes     = require('./routes/qrRoutes');
+const passwordResetRoutes = require('./routes/passwordResetRoutes');
+const hardwareRoutes = require('./routes/hardwareRoutes');
+const respuestaRapidaRoutes = require('./routes/respuestaRapidaRoutes');
+const adminRoutes = require('./routes/admin');
+const SerialService = require('./utils/serialService');
+
+const app = express();
+const server = http.createServer(app);
+const io = new Server(server, { cors: { origin: '*' } });
+
+const PORT = process.env.PORT || 3000;
+
+app.use(cors());
+app.use(express.json({ limit: '5mb' }));
+app.use(express.urlencoded({ extended: true, limit: '5mb' }));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// Configurar sesiones para Passport
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'arachiz-session-secret',
+  resave: false,
+  saveUninitialized: false,
+  cookie: { secure: process.env.NODE_ENV === 'production' }
+}));
+
+// Inicializar Passport
+app.use(passport.initialize());
+app.use(passport.session());
+
+// Rutas de autenticación con Google
+app.get('/api/auth/google',
+  passport.authenticate('google', { scope: ['profile', 'email'] })
+);
+
+app.get('/api/auth/google/callback',
+  passport.authenticate('google', { failureRedirect: '/login' }),
+  (req, res) => {
+    // Generar JWT token
+    const token = jwt.sign(
+      { id: req.user.id, userType: req.user.userType, email: req.user.email, fullName: req.user.fullName },
+      process.env.JWT_SECRET || 'supersecretarachiz',
+      { expiresIn: '8h' }
+    );
+    
+    // Redirigir al frontend con el token
+    res.redirect(`${process.env.FRONTEND_URL}/auth/callback?token=${token}`);
+  }
+);
+
+app.use('/api/auth', authRoutes);
+app.use('/api/fichas', fichaRoutes);
+app.use('/api/materias', materiaRoutes);
+app.use('/api/asistencias', asistenciaRoutes);
+app.use('/api/excusas', excusaRoutes);
+app.use('/api/horarios', horarioRoutes);
+app.use('/api/export', exportRoutes);
+app.use('/api/serial', serialRoutes);
+app.use('/api/snake',  snakeRoutes);
+app.use('/api/games',  gamesRoutes);
+app.use('/api/skins',  skinRoutes);
+app.use('/api', materiaEvitadaRoutes);
+app.use('/api/qr',     qrRoutes);
+app.use('/api/password', passwordResetRoutes);
+app.use('/api/hardware', hardwareRoutes);
+app.use('/api/respuestas-rapidas', respuestaRapidaRoutes);
+app.use('/api/admin', adminRoutes);
+
+const serialService = new SerialService(io);
+app.set('serialService', serialService);
+app.set('io', io);
+
+io.on('connection', (socket) => {
+  socket.on('joinSession', (sessionId) => {
+    socket.join(`session_${sessionId}`);
+  });
+  socket.on('leaveSession', (sessionId) => {
+    socket.leave(`session_${sessionId}`);
+  });
+  socket.on('disconnect', () => {});
+});
+
+app.use((req, res) => {
+  res.status(404).json({ error: 'Ruta no encontrada' });
+});
+
+// Global error handler
+app.use((err, req, res, next) => {
+  console.error('Express Error:', err);
+  res.status(500).json({ error: err.message || 'Error interno del servidor' });
+});
+
+server.listen(PORT, () => {
+  console.log(`Arachiz backend corriendo en http://localhost:${PORT}`);
+});
