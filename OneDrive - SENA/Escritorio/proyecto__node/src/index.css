@@ -1,0 +1,9 @@
+@import url('https://fonts.googleapis.com');
+
+@theme {
+  --font-display: 'Roboto', sans-serif;
+  --font-sans: 'Roboto', sans-serif;
+  --grid-cols-70-30: 70% 28%;
+}
+
+@import "tailwindcss"
