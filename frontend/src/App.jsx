@@ -12,6 +12,7 @@ import ForgotPassword from './pages/auth/ForgotPassword';
 import ResetPassword from './pages/auth/ResetPassword';
 import GoogleCallback from './pages/auth/GoogleCallback';
 import Landing from './pages/Landing';
+import AboutUs from './pages/AboutUs';
 
 import InstructorDashboard  from './pages/instructor/Dashboard';
 import InstructorFichas     from './pages/instructor/Fichas';
@@ -53,6 +54,7 @@ export default function App() {
           <AuthProvider>
             <Routes>
               <Route path="/" element={<Landing />} />
+              <Route path="/about" element={<AboutUs />} />
               <Route path="/login"    element={<Login />} />
               <Route path="/register" element={<Register />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
