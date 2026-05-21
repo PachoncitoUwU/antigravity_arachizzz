@@ -33,7 +33,7 @@ export default function AboutUs() {
   const collaborators = [
     {
       name: "Samuel Mahecha Díaz",
-      role: "Diseño",
+      role: "Frontend",
       icon: Palette,
       color: "from-purple-500 to-pink-500",
       instagram: "https://www.instagram.com/samn0x_369?igsh=MWI4dGtoYnhjcm92bA==",
